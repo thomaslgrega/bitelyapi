@@ -1,7 +1,9 @@
 package handlers
 
 import (
+	"database/sql"
 	"encoding/json"
+	"errors"
 	"log"
 	"net/http"
 
@@ -15,6 +17,28 @@ type RecipeHandler struct {
 
 func NewRecipeHandler(repo *repository.RecipeRepository) *RecipeHandler {
 	return &RecipeHandler{repo: repo}
+}
+
+func (h *RecipeHandler) GetRecipeById(w http.ResponseWriter, r *http.Request) {
+	id := r.PathValue("id")
+	if id == "" {
+		http.Error(w, "id required", http.StatusBadRequest)
+		return
+	}
+
+	recipe, err := h.repo.GetRecipeById(r.Context(), id)
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			http.Error(w, "recipe not found", http.StatusNotFound)
+		}
+		http.Error(w, "failed to fetch recipe", http.StatusInternalServerError)
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	if err := json.NewEncoder(w).Encode(recipe); err != nil {
+		http.Error(w, "failed to encode response", http.StatusInternalServerError)
+	}
 }
 
 func (h *RecipeHandler) GetRecipes(w http.ResponseWriter, r *http.Request) {
@@ -31,7 +55,9 @@ func (h *RecipeHandler) GetRecipes(w http.ResponseWriter, r *http.Request) {
 	}
 
 	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(recipes)
+	if err := json.NewEncoder(w).Encode(recipes); err != nil {
+		http.Error(w, "failed to encode response", http.StatusInternalServerError)
+	}
 }
 
 func (h *RecipeHandler) CreateRecipe(w http.ResponseWriter, r *http.Request) {
@@ -55,7 +81,9 @@ func (h *RecipeHandler) CreateRecipe(w http.ResponseWriter, r *http.Request) {
 	}
 
 	w.WriteHeader((http.StatusCreated))
-	json.NewEncoder(w).Encode(recipe)
+	if err := json.NewEncoder(w).Encode(recipe); err != nil {
+		http.Error(w, "failed to encode response", http.StatusInternalServerError)
+	}
 }
 
 // func UpdateRecipe(w http.ResponseWriter, r *http.Request) {

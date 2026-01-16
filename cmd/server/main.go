@@ -25,7 +25,7 @@ func main() {
 	recipesHandler := handlers.NewRecipeHandler(recipesRepo)
 
 	mux := http.NewServeMux()
-	// mux.HandleFunc("GET /recipes/{id}", handlers.GetRecipeById)
+	mux.HandleFunc("GET /recipes/{id}", recipesHandler.GetRecipeById)
 	mux.HandleFunc("GET /recipes", recipesHandler.GetRecipes)
 	mux.HandleFunc("POST /recipes", recipesHandler.CreateRecipe)
 	// mux.HandleFunc("DELETE /recipe/{id}", handlers.DeleteRecipe)

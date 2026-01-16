@@ -3,7 +3,7 @@ package repository
 import (
 	"context"
 	"database/sql"
-	"log"
+	"errors"
 
 	"github.com/thomaslgrega/bitelyapi/internal/models"
 )
@@ -14,6 +14,51 @@ type RecipeRepository struct {
 
 func NewRecipeRepository(db *sql.DB) *RecipeRepository {
 	return &RecipeRepository{db: db}
+}
+
+func (r *RecipeRepository) GetRecipeById(ctx context.Context, id string) (models.Recipe, error) {
+	row := r.db.QueryRowContext(
+		ctx,
+		"SELECT id, name, category, instructions, thumbnail_url, calories, total_cook_time FROM recipes WHERE id = $1",
+		id,
+	)
+
+	var recipe models.Recipe
+	if err := row.Scan(
+		&recipe.ID,
+		&recipe.Name,
+		&recipe.Category,
+		&recipe.Instructions,
+		&recipe.ThumbnailUrl,
+		&recipe.Calories,
+		&recipe.TotalCookTime,
+	); err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return recipe, err
+		}
+		return recipe, err
+	}
+
+	rows, err := r.db.QueryContext(ctx, "SELECT id, name, measurement FROM ingredients WHERE recipe_id = $1", id)
+	if err != nil {
+		return recipe, err
+	}
+
+	defer rows.Close()
+	for rows.Next() {
+		var ingredient models.Ingredient
+		if err := rows.Scan(&ingredient.ID, &ingredient.Name, &ingredient.Measurement); err != nil {
+			return recipe, err
+		}
+
+		recipe.Ingredients = append(recipe.Ingredients, ingredient)
+	}
+
+	if err := rows.Err(); err != nil {
+		return recipe, err
+	}
+
+	return recipe, nil
 }
 
 func (r *RecipeRepository) GetRecipesByCategory(ctx context.Context, category string) ([]models.RecipeSummary, error) {
@@ -42,7 +87,6 @@ func (r *RecipeRepository) GetRecipesByCategory(ctx context.Context, category st
 func (r *RecipeRepository) CreateRecipe(ctx context.Context, input models.CreateRecipeInput) (*models.Recipe, error) {
 	transaction, err := r.db.BeginTx(ctx, nil)
 	if err != nil {
-		log.Println("1")
 		return nil, err
 	}
 
@@ -56,7 +100,6 @@ func (r *RecipeRepository) CreateRecipe(ctx context.Context, input models.Create
 	`, input.Name, input.Category, input.Instructions, input.ThumbnailUrl, input.Calories, input.TotalCookTime).Scan(&recipeID)
 
 	if err != nil {
-		log.Println("2")
 		return nil, err
 	}
 
@@ -67,24 +110,22 @@ func (r *RecipeRepository) CreateRecipe(ctx context.Context, input models.Create
 		`, recipeID, ingredient.Name, ingredient.Measurement)
 
 		if err != nil {
-			log.Println("3")
 			return nil, err
 		}
 	}
 
 	if err := transaction.Commit(); err != nil {
-		log.Println("4")
 		return nil, err
 	}
 
 	return &models.Recipe{
-		ID: recipeID,
-		Name: input.Name,
-		Category: input.Category,
-		Instructions: input.Instructions,
-		Ingredients: input.Ingredients,
-		ThumbnailUrl: input.ThumbnailUrl,
-		Calories: input.Calories,
+		ID:            recipeID,
+		Name:          input.Name,
+		Category:      input.Category,
+		Instructions:  input.Instructions,
+		Ingredients:   input.Ingredients,
+		ThumbnailUrl:  input.ThumbnailUrl,
+		Calories:      input.Calories,
 		TotalCookTime: input.TotalCookTime,
 	}, nil
 }
