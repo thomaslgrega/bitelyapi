@@ -1,0 +1,18 @@
+# Environment / secrets
+.env
+.env.*
+
+# Build / binaries
+bin/
+*.exe
+*.out
+*.test
+
+# Editor
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# macOS
+.DS_Store
