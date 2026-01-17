@@ -4,7 +4,6 @@ import (
 	"database/sql"
 	"encoding/json"
 	"errors"
-	"log"
 	"net/http"
 
 	"github.com/thomaslgrega/bitelyapi/internal/models"
@@ -76,7 +75,6 @@ func (h *RecipeHandler) CreateRecipe(w http.ResponseWriter, r *http.Request) {
 
 	recipe, err := h.repo.CreateRecipe(r.Context(), input)
 	if err != nil {
-		log.Println(err)
 		http.Error(w, "failed to create recipe", http.StatusInternalServerError)
 		return
 	}
