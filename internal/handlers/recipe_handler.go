@@ -22,7 +22,7 @@ func NewRecipeHandler(repo *repository.RecipeRepository) *RecipeHandler {
 func (h *RecipeHandler) GetRecipeById(w http.ResponseWriter, r *http.Request) {
 	id := r.PathValue("id")
 	if id == "" {
-		http.Error(w, "id required", http.StatusBadRequest)
+		http.Error(w, "id is required", http.StatusBadRequest)
 		return
 	}
 
@@ -30,6 +30,7 @@ func (h *RecipeHandler) GetRecipeById(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			http.Error(w, "recipe not found", http.StatusNotFound)
+			return
 		}
 		http.Error(w, "failed to fetch recipe", http.StatusInternalServerError)
 		return
@@ -86,10 +87,50 @@ func (h *RecipeHandler) CreateRecipe(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-// func UpdateRecipe(w http.ResponseWriter, r *http.Request) {
+func (h *RecipeHandler) DeleteRecipe(w http.ResponseWriter, r *http.Request) {
+	id := r.PathValue("id")
+	if id == "" {
+		http.Error(w, "id is required", http.StatusBadRequest)
+		return
+	}
 
-// }
+	err := h.repo.DeleteRecipe(r.Context(),id)
+	if errors.Is(err, sql.ErrNoRows) {
+		http.Error(w, "recipes not found", http.StatusNotFound)
+		return
+	}
 
-// func DeleteRecipe(w http.ResponseWriter, r *http.Request) {
+	if err != nil {
+		http.Error(w, "recipe delete failed", http.StatusInternalServerError)
+		return
+	}
 
-// }
+	w.WriteHeader(http.StatusNoContent)
+}
+
+func (h *RecipeHandler) UpdateRecipe(w http.ResponseWriter, r *http.Request) {
+	id := r.PathValue("id")
+	if id == "" {
+		http.Error(w, "id is required", http.StatusBadRequest)
+		return
+	}
+
+	var recipe models.Recipe
+	if err := json.NewDecoder(r.Body).Decode(&recipe); err != nil {
+		http.Error(w, "invalid JSON", http.StatusBadRequest)
+		return
+	}
+
+	err := h.repo.UpdateRecipe(r.Context(), recipe)
+	if errors.Is(err, sql.ErrNoRows) {
+		http.Error(w, "recipe not found", http.StatusNotFound)
+		return
+	}
+
+	if err != nil {
+		http.Error(w, "failed to update recipe", http.StatusInternalServerError)
+		return
+	}
+
+	w.WriteHeader(http.StatusNoContent)
+}

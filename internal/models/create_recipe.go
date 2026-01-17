@@ -1,6 +1,7 @@
 package models
 
 type CreateRecipeInput struct {
+	ID            string       `json:"id"`
 	Name          string       `json:"name"`
 	Category      string       `json:"category"`
 	Instructions  string       `json:"instructions"`

@@ -28,8 +28,8 @@ func main() {
 	mux.HandleFunc("GET /recipes/{id}", recipesHandler.GetRecipeById)
 	mux.HandleFunc("GET /recipes", recipesHandler.GetRecipes)
 	mux.HandleFunc("POST /recipes", recipesHandler.CreateRecipe)
-	// mux.HandleFunc("DELETE /recipe/{id}", handlers.DeleteRecipe)
-	// mux.HandleFunc("PUT /recipes/{id}", handlers.UpdateRecipe)
+	mux.HandleFunc("DELETE /recipes/{id}", recipesHandler.DeleteRecipe)
+	mux.HandleFunc("PUT /recipes/{id}", recipesHandler.UpdateRecipe)
 
 	portString := os.Getenv("PORT")
 	if portString == "" {

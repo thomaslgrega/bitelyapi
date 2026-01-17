@@ -92,23 +92,19 @@ func (r *RecipeRepository) CreateRecipe(ctx context.Context, input models.Create
 
 	defer transaction.Rollback()
 
-	var recipeID string
-	err = transaction.QueryRowContext(ctx, `
-		INSERT INTO recipes (name, category, instructions, thumbnail_url, calories, total_cook_time)
-		VALUES ($1, $2, $3, $4, $5, $6)
-		RETURNING id
-	`, input.Name, input.Category, input.Instructions, input.ThumbnailUrl, input.Calories, input.TotalCookTime).Scan(&recipeID)
-
+	_, err = transaction.ExecContext(ctx, `
+		INSERT INTO recipes (id, name, category, instructions, thumbnail_url, calories, total_cook_time)
+		VALUES ($1, $2, $3, $4, $5, $6, $7)
+	`, input.ID, input.Name, input.Category, input.Instructions, input.ThumbnailUrl, input.Calories, input.TotalCookTime)
 	if err != nil {
 		return nil, err
 	}
 
 	for _, ingredient := range input.Ingredients {
 		_, err := transaction.ExecContext(ctx, `
-			INSERT INTO ingredients (recipe_id, name, measurement)
-			VALUES ($1, $2, $3)
-		`, recipeID, ingredient.Name, ingredient.Measurement)
-
+			INSERT INTO ingredients (id, recipe_id, name, measurement)
+			VALUES ($1, $2, $3, $4)
+		`, ingredient.ID, input.ID, ingredient.Name, ingredient.Measurement)
 		if err != nil {
 			return nil, err
 		}
@@ -119,7 +115,7 @@ func (r *RecipeRepository) CreateRecipe(ctx context.Context, input models.Create
 	}
 
 	return &models.Recipe{
-		ID:            recipeID,
+		ID:            input.ID,
 		Name:          input.Name,
 		Category:      input.Category,
 		Instructions:  input.Instructions,
@@ -128,4 +124,70 @@ func (r *RecipeRepository) CreateRecipe(ctx context.Context, input models.Create
 		Calories:      input.Calories,
 		TotalCookTime: input.TotalCookTime,
 	}, nil
+}
+
+func (r *RecipeRepository) DeleteRecipe(ctx context.Context, id string) error {
+	result, err := r.db.ExecContext(ctx, "DELETE FROM recipes WHERE id = $1", id)
+	if err != nil {
+		return err
+	}
+
+	rows, err := result.RowsAffected()
+	if err != nil {
+		return err
+	}
+
+	if rows == 0 {
+		return sql.ErrNoRows
+	}
+
+	return nil
+}
+
+func (r *RecipeRepository) UpdateRecipe(ctx context.Context, recipe models.Recipe) error {
+	transaction, err := r.db.BeginTx(ctx, nil)
+	if err != nil {
+		return err
+	}
+
+	defer transaction.Rollback()
+
+	result, err := transaction.ExecContext(ctx, `
+		UPDATE recipes
+		SET name = $1, category = $2, instructions = $3, thumbnail_url = $4, calories = $5, total_cook_time = $6
+		WHERE id = $7
+	`, recipe.Name, recipe.Category, recipe.Instructions, recipe.ThumbnailUrl, recipe.Calories, recipe.TotalCookTime, recipe.ID)
+	if err != nil {
+		return err
+	}
+
+	rowsAffected, err := result.RowsAffected()
+	if err != nil {
+		return err
+	}
+	if rowsAffected == 0 {
+		return sql.ErrNoRows
+	}
+
+	_, err = transaction.ExecContext(ctx, "DELETE FROM ingredients WHERE recipe_id = $1", recipe.ID)
+	if err != nil {
+		return err
+	}
+
+	for _, ingredient := range recipe.Ingredients {
+		_, err := transaction.ExecContext(ctx, `
+			INSERT INTO ingredients (id, recipe_id, name, measurement)
+			VALUES ($1, $2, $3, $4)
+		`, ingredient.ID, recipe.ID, ingredient.Name, ingredient.Measurement)
+
+		if err != nil {
+			return err
+		}
+	}
+
+	if err := transaction.Commit(); err != nil {
+		return err
+	}
+
+	return nil
 }
