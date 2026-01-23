@@ -5,10 +5,13 @@ import (
 	"log"
 	"net/http"
 	"os"
+	"time"
 
 	"github.com/joho/godotenv"
+	"github.com/thomaslgrega/bitelyapi/internal/auth"
 	"github.com/thomaslgrega/bitelyapi/internal/db"
 	"github.com/thomaslgrega/bitelyapi/internal/handlers"
+	"github.com/thomaslgrega/bitelyapi/internal/middleware"
 	"github.com/thomaslgrega/bitelyapi/internal/repository"
 )
 
@@ -24,12 +27,20 @@ func main() {
 	recipesRepo := repository.NewRecipeRepository(dbConn)
 	recipesHandler := handlers.NewRecipeHandler(recipesRepo)
 
+	authRepo := repository.NewAuthRepository(dbConn)
+	jwtManager := auth.NewJWTManager(os.Getenv("JWT_SECRET"), "bitelyapi", 24*time.Hour)
+	authHandler := handlers.NewAuthHandler(authRepo, jwtManager)
+
+	authMW := middleware.AuthMiddleware(jwtManager)
+
 	mux := http.NewServeMux()
-	mux.HandleFunc("GET /recipes/{id}", recipesHandler.GetRecipeById)
-	mux.HandleFunc("GET /recipes", recipesHandler.GetRecipes)
-	mux.HandleFunc("POST /recipes", recipesHandler.CreateRecipe)
-	mux.HandleFunc("DELETE /recipes/{id}", recipesHandler.DeleteRecipe)
-	mux.HandleFunc("PUT /recipes/{id}", recipesHandler.UpdateRecipe)
+	mux.Handle("GET /recipes/{id}", authMW(http.HandlerFunc(recipesHandler.GetRecipeById)))
+	mux.Handle("GET /recipes", authMW(http.HandlerFunc(recipesHandler.GetRecipes)))
+	mux.Handle("POST /recipes", authMW(http.HandlerFunc(recipesHandler.CreateRecipe)))
+	mux.Handle("DELETE /recipes/{id}", authMW(http.HandlerFunc(recipesHandler.DeleteRecipe)))
+	mux.Handle("PUT /recipes/{id}", authMW(http.HandlerFunc(recipesHandler.UpdateRecipe)))
+
+	mux.HandleFunc("POST /auth/apple", authHandler.SignInWithApple)
 
 	portString := os.Getenv("PORT")
 	if portString == "" {
@@ -37,7 +48,5 @@ func main() {
 	}
 
 	fmt.Println("Starting server on PORT:", portString)
-	log.Fatal(http.ListenAndServe(":" + portString, mux))
+	log.Fatal(http.ListenAndServe(":"+portString, mux))
 }
-
-
