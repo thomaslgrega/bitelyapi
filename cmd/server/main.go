@@ -42,6 +42,7 @@ func main() {
 
 	mux.HandleFunc("POST /auth/apple", authHandler.SignInWithApple)
 	mux.HandleFunc("POST /auth/register", authHandler.Register)
+	mux.HandleFunc("POST /auth/login", authHandler.Login)
 
 	portString := os.Getenv("PORT")
 	if portString == "" {
