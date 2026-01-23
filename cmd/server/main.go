@@ -41,6 +41,7 @@ func main() {
 	mux.Handle("PUT /recipes/{id}", authMW(http.HandlerFunc(recipesHandler.UpdateRecipe)))
 
 	mux.HandleFunc("POST /auth/apple", authHandler.SignInWithApple)
+	mux.HandleFunc("POST /auth/register", authHandler.Register)
 
 	portString := os.Getenv("PORT")
 	if portString == "" {

@@ -38,6 +38,19 @@ func (r *AuthRepository) FindOrCreateUser(ctx context.Context, appleSub string, 
 		RETURNING id, email, first_name, last_name
 	`, appleSub, email, firstName, lastName)
 	err = row.Scan(&user.ID, &user.Email, &user.FirstName, &user.LastName)
-	
+
+	return user, err
+}
+
+func (r *AuthRepository) CreateUserWithPassword(ctx context.Context, email string, passwordHash string) (models.User, error) {
+	var user models.User
+
+	row := r.db.QueryRowContext(ctx, `
+		INSERT INTO users (email, password_hash)
+		VALUES ($1, $2)
+		RETURNING id, email, first_name, last_name
+	`, email, passwordHash)
+
+	err := row.Scan(&user.ID, &user.Email, &user.FirstName, &user.LastName)
 	return user, err
 }
