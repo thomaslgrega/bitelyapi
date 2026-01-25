@@ -84,7 +84,7 @@ func (r *RecipeRepository) GetRecipesByCategory(ctx context.Context, category st
 	return recipes, nil
 }
 
-func (r *RecipeRepository) CreateRecipe(ctx context.Context, input models.CreateRecipeInput) (*models.Recipe, error) {
+func (r *RecipeRepository) CreateRecipe(ctx context.Context, userID string, input models.CreateRecipeInput) (*models.Recipe, error) {
 	transaction, err := r.db.BeginTx(ctx, nil)
 	if err != nil {
 		return nil, err
@@ -93,9 +93,9 @@ func (r *RecipeRepository) CreateRecipe(ctx context.Context, input models.Create
 	defer transaction.Rollback()
 
 	_, err = transaction.ExecContext(ctx, `
-		INSERT INTO recipes (id, name, category, instructions, thumbnail_url, calories, total_cook_time)
-		VALUES ($1, $2, $3, $4, $5, $6, $7)
-	`, input.ID, input.Name, input.Category, input.Instructions, input.ThumbnailUrl, input.Calories, input.TotalCookTime)
+		INSERT INTO recipes (id, user_id, name, category, instructions, thumbnail_url, calories, total_cook_time)
+		VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+	`, input.ID, userID, input.Name, input.Category, input.Instructions, input.ThumbnailUrl, input.Calories, input.TotalCookTime)
 	if err != nil {
 		return nil, err
 	}
@@ -116,6 +116,7 @@ func (r *RecipeRepository) CreateRecipe(ctx context.Context, input models.Create
 
 	return &models.Recipe{
 		ID:            input.ID,
+		UserID:        userID,
 		Name:          input.Name,
 		Category:      input.Category,
 		Instructions:  input.Instructions,

@@ -2,6 +2,7 @@ package middleware
 
 import (
 	"context"
+	"errors"
 	"net/http"
 	"strings"
 
@@ -45,4 +46,14 @@ func AuthMiddleware(jwtManager *auth.JWTManager) func(http.Handler) http.Handler
 			next.ServeHTTP(w, r.WithContext(ctx))
 		})
 	}
+}
+
+func UserIDFromContext(ctx context.Context) (string, error) {
+	v := ctx.Value(userIDKey)
+	userID, ok := v.(string)
+	if !ok || userID == "" {
+		return "", errors.New("missing user id in context")
+	}
+
+	return userID, nil
 }

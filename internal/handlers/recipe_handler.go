@@ -6,6 +6,7 @@ import (
 	"errors"
 	"net/http"
 
+	"github.com/thomaslgrega/bitelyapi/internal/middleware"
 	"github.com/thomaslgrega/bitelyapi/internal/models"
 	"github.com/thomaslgrega/bitelyapi/internal/repository"
 )
@@ -61,8 +62,13 @@ func (h *RecipeHandler) GetRecipes(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *RecipeHandler) CreateRecipe(w http.ResponseWriter, r *http.Request) {
-	var input models.CreateRecipeInput
+	userID, err := middleware.UserIDFromContext(r.Context())
+	if err != nil {
+		http.Error(w, "unauthorized", http.StatusUnauthorized)
+		return
+	}
 
+	var input models.CreateRecipeInput
 	if err := json.NewDecoder(r.Body).Decode(&input); err != nil {
 		http.Error(w, "invalid JSON", http.StatusBadRequest)
 		return
@@ -73,7 +79,7 @@ func (h *RecipeHandler) CreateRecipe(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	recipe, err := h.repo.CreateRecipe(r.Context(), input)
+	recipe, err := h.repo.CreateRecipe(r.Context(), userID, input)
 	if err != nil {
 		http.Error(w, "failed to create recipe", http.StatusInternalServerError)
 		return

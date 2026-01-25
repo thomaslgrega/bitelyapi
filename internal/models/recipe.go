@@ -2,6 +2,7 @@ package models
 
 type Recipe struct {
 	ID            string       `json:"id"`
+	UserID        string       `json:"user_id"`
 	Name          string       `json:"name"`
 	Category      string       `json:"category"`
 	Instructions  string       `json:"instructions,omitempty"`
