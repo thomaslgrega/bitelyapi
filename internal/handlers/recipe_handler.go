@@ -27,6 +27,7 @@ func (h *RecipeHandler) GetRecipeById(w http.ResponseWriter, r *http.Request) {
 	}
 
 	recipe, err := h.repo.GetRecipeById(r.Context(), id)
+
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			http.Error(w, "recipe not found", http.StatusNotFound)
@@ -50,6 +51,25 @@ func (h *RecipeHandler) GetRecipes(w http.ResponseWriter, r *http.Request) {
 	}
 
 	recipes, err := h.repo.GetRecipesByCategory(r.Context(), category)
+	if err != nil {
+		http.Error(w, "failed to fetch recipes", http.StatusInternalServerError)
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	if err := json.NewEncoder(w).Encode(recipes); err != nil {
+		http.Error(w, "failed to encode response", http.StatusInternalServerError)
+	}
+}
+
+func (h *RecipeHandler) GetMyRecipes(w http.ResponseWriter, r *http.Request) {
+	userID, err := middleware.UserIDFromContext(r.Context())
+	if err != nil {
+		http.Error(w, "unauthorized", http.StatusUnauthorized)
+		return
+	}
+
+	recipes, err := h.repo.GetRecipesByUserID(r.Context(), userID)
 	if err != nil {
 		http.Error(w, "failed to fetch recipes", http.StatusInternalServerError)
 		return
@@ -92,15 +112,21 @@ func (h *RecipeHandler) CreateRecipe(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *RecipeHandler) DeleteRecipe(w http.ResponseWriter, r *http.Request) {
+	userID, err := middleware.UserIDFromContext(r.Context())
+	if err != nil {
+		http.Error(w, "unauthorized", http.StatusUnauthorized)
+		return
+	}
+
 	id := r.PathValue("id")
 	if id == "" {
 		http.Error(w, "id is required", http.StatusBadRequest)
 		return
 	}
 
-	err := h.repo.DeleteRecipe(r.Context(),id)
+	err = h.repo.DeleteRecipe(r.Context(), id, userID)
 	if errors.Is(err, sql.ErrNoRows) {
-		http.Error(w, "recipes not found", http.StatusNotFound)
+		http.Error(w, "recipe not found", http.StatusNotFound)
 		return
 	}
 
@@ -113,9 +139,9 @@ func (h *RecipeHandler) DeleteRecipe(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *RecipeHandler) UpdateRecipe(w http.ResponseWriter, r *http.Request) {
-	id := r.PathValue("id")
-	if id == "" {
-		http.Error(w, "id is required", http.StatusBadRequest)
+	userID, err := middleware.UserIDFromContext(r.Context())
+	if err != nil {
+		http.Error(w, "unauthorized", http.StatusUnauthorized)
 		return
 	}
 
@@ -125,7 +151,14 @@ func (h *RecipeHandler) UpdateRecipe(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	err := h.repo.UpdateRecipe(r.Context(), recipe)
+	id := r.PathValue("id")
+	if id == "" {
+		http.Error(w, "id is required", http.StatusBadRequest)
+		return
+	}
+	recipe.ID = id
+
+	err = h.repo.UpdateRecipe(r.Context(), recipe, userID)
 	if errors.Is(err, sql.ErrNoRows) {
 		http.Error(w, "recipe not found", http.StatusNotFound)
 		return

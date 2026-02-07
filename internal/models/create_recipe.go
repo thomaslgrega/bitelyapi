@@ -1,12 +1,16 @@
 package models
 
+type CreateIngredientInput struct {
+	Name        string `json:"name"`
+	Measurement string `json:"measurement"`
+}
+
 type CreateRecipeInput struct {
-	ID            string       `json:"id"`
-	Name          string       `json:"name"`
-	Category      string       `json:"category"`
-	Instructions  string       `json:"instructions"`
-	ThumbnailUrl  string       `json:"thumbnail_url"`
-	Ingredients   []Ingredient `json:"ingredients"`
-	Calories      int          `json:"calories"`
-	TotalCookTime int          `json:"total_cook_time"`
+	Name          string                  `json:"name"`
+	Category      string                  `json:"category"`
+	Instructions  string                  `json:"instructions,omitempty"`
+	ThumbnailUrl  string                  `json:"thumbnail_url,omitempty"`
+	Ingredients   []CreateIngredientInput `json:"ingredients"`
+	Calories      int                     `json:"calories,omitempty"`
+	TotalCookTime int                     `json:"total_cook_time,omitempty"`
 }
