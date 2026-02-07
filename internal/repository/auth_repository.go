@@ -66,3 +66,15 @@ func (r *AuthRepository) GetUserByEmail(ctx context.Context, email string) (mode
 	err := row.Scan(&user.ID, &user.Email, &user.FirstName, &user.LastName, &user.PasswordHash)
 	return user, err
 }
+
+func (r *AuthRepository) GetUserByID(ctx context.Context, id string) (models.User, error) {
+	var user models.User
+	row := r.db.QueryRowContext(ctx, `
+		SELECT id, email, first_name, last_name
+		FROM users
+		WHERE id = $1
+	`, id)
+
+	err := row.Scan(&user.ID, &user.Email, &user.FirstName, &user.LastName)
+	return user, err
+}

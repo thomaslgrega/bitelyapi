@@ -1,11 +1,14 @@
 package handlers
 
 import (
+	"database/sql"
 	"encoding/json"
+	"errors"
 	"net/http"
 	"strings"
 
 	"github.com/thomaslgrega/bitelyapi/internal/auth"
+	"github.com/thomaslgrega/bitelyapi/internal/middleware"
 	"github.com/thomaslgrega/bitelyapi/internal/repository"
 )
 
@@ -85,7 +88,7 @@ func (h *AuthHandler) Register(w http.ResponseWriter, r *http.Request) {
 
 	user, err := h.repo.CreateUserWithPassword(r.Context(), req.Email, hash)
 	if err != nil {
-		http.Error(w, "email already in user", http.StatusConflict)
+		http.Error(w, "email already in use", http.StatusConflict)
 		return
 	}
 
@@ -145,4 +148,25 @@ func (h *AuthHandler) Login(w http.ResponseWriter, r *http.Request) {
 		"access_token": token,
 		"user":         user,
 	})
+}
+
+func (h *AuthHandler) Me(w http.ResponseWriter, r *http.Request) {
+	userID, err := middleware.UserIDFromContext(r.Context())
+	if err != nil {
+		http.Error(w, "unauthorized", http.StatusUnauthorized)
+		return
+	}
+
+	user, err := h.repo.GetUserByID(r.Context(), userID)
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			http.Error(w, "user not found", http.StatusNotFound)
+			return
+		}
+		http.Error(w, "failed to fetch user", http.StatusInternalServerError)
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(user)
 }

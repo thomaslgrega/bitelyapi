@@ -34,12 +34,15 @@ func main() {
 	authMW := middleware.AuthMiddleware(jwtManager)
 
 	mux := http.NewServeMux()
-	mux.Handle("GET /recipes/{id}", authMW(http.HandlerFunc(recipesHandler.GetRecipeById)))
-	mux.Handle("GET /recipes", authMW(http.HandlerFunc(recipesHandler.GetRecipes)))
+
 	mux.Handle("POST /recipes", authMW(http.HandlerFunc(recipesHandler.CreateRecipe)))
+	mux.Handle("GET /me/recipes", authMW(http.HandlerFunc(recipesHandler.GetMyRecipes)))
 	mux.Handle("DELETE /recipes/{id}", authMW(http.HandlerFunc(recipesHandler.DeleteRecipe)))
 	mux.Handle("PUT /recipes/{id}", authMW(http.HandlerFunc(recipesHandler.UpdateRecipe)))
+	mux.Handle("GET /me", authMW(http.HandlerFunc(authHandler.Me)))
 
+	mux.HandleFunc("GET /recipes/{id}", recipesHandler.GetRecipeById)
+	mux.HandleFunc("GET /recipes", recipesHandler.GetRecipes)
 	mux.HandleFunc("POST /auth/apple", authHandler.SignInWithApple)
 	mux.HandleFunc("POST /auth/register", authHandler.Register)
 	mux.HandleFunc("POST /auth/login", authHandler.Login)
