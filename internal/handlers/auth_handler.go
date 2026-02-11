@@ -35,7 +35,7 @@ func (h *AuthHandler) SignInWithApple(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	claims, err := auth.VerifyAppleIdentityToken(req.IdentityToken, "com.thomaslgrega.WhatWeEating")
+	claims, err := auth.VerifyAppleIdentityToken(req.IdentityToken, "com.thomaslgrega.Bitely")
 	if err != nil {
 		http.Error(w, "invalid Apple token", http.StatusUnauthorized)
 		return
