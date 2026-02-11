@@ -14,7 +14,7 @@ REST API for the Bitely iOS app. Built with **Go + PostgreSQL**, includes **JWT 
 - Protected endpoints enforce recipe ownership (`WHERE id = $1 AND user_id = $2`)
 - Session restore support (`GET /me`)
 
-Sign in with Email
+Sign in with Email  
 Sign in with Apple: **in progress**
 
 ---
@@ -39,6 +39,6 @@ Sign in with Apple: **in progress**
 ---
 
 ### Sample `.env` file:
-PORT=8080
-DATABASE_URL=postgres://postgres:password@localhost:5432/bitelyapi?sslmode=disable
+PORT=8080  
+DATABASE_URL=postgres://postgres:password@localhost:5432/bitelyapi?sslmode=disable  
 JWT_SECRET=your_long_random_secret
