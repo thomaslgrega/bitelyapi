@@ -4,7 +4,6 @@ REST API for the Bitely iOS app. Built with **Go + PostgreSQL**, includes **JWT 
 
 **iOS app repo:** [bitely-ios](https://github.com/thomaslgrega/bitely-ios)
 
----
 
 ## Features
 
@@ -17,7 +16,6 @@ REST API for the Bitely iOS app. Built with **Go + PostgreSQL**, includes **JWT 
 Sign in with Email  
 Sign in with Apple: **in progress**
 
----
 
 ## Routes
 
@@ -36,7 +34,6 @@ Sign in with Apple: **in progress**
 - `PUT /recipes/{id}` — update my recipe
 - `DELETE /recipes/{id}` — delete my recipe
 
----
 
 ### Sample `.env` file:
 PORT=8080  
