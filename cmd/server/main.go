@@ -31,6 +31,8 @@ func main() {
 	jwtManager := auth.NewJWTManager(os.Getenv("JWT_SECRET"), "bitelyapi", 24*time.Hour)
 	authHandler := handlers.NewAuthHandler(authRepo, jwtManager)
 
+	healthHandler := handlers.NewHealthHandler()
+
 	authMW := middleware.AuthMiddleware(jwtManager)
 
 	mux := http.NewServeMux()
@@ -47,9 +49,11 @@ func main() {
 	mux.HandleFunc("POST /auth/register", authHandler.Register)
 	mux.HandleFunc("POST /auth/login", authHandler.Login)
 
+	mux.HandleFunc("GET /health", healthHandler.Health)
+
 	portString := os.Getenv("PORT")
 	if portString == "" {
-		log.Fatal("PORT is not found in the environment")
+		portString = "8080"
 	}
 
 	fmt.Println("Starting server on PORT:", portString)
