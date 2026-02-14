@@ -9,9 +9,7 @@ import (
 )
 
 func NewPostgresDB() (*sql.DB, error) {
-	if err := godotenv.Load(); err != nil {
-		return nil, err
-	}
+	godotenv.Load()
 
 	dsn := os.Getenv("DATABASE_URL")
 
