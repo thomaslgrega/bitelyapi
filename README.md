@@ -5,7 +5,7 @@ REST API for the Bitely iOS app. Built with **Go + PostgreSQL**, includes **JWT 
 **iOS app repo:** [bitely-ios](https://github.com/thomaslgrega/bitely-ios)
 
 ## Hosted
-- **API (Render):** https://bitelyapi.onrender.com
+- **API (Render, Docker):** https://bitelyapi-docker.onrender.com
 - **Database:** Neon (Postgres)
 
 Health check: `GET /health`
@@ -108,9 +108,10 @@ curl http://localhost:8080/health
 ```
 
 ## Deployment Notes (Render + Neon)
-- Render hosts the Go API; configuration is managed via environment variables.
+- API is containerized with Docker and deployed to Render.
+- Render configuration is managed via environment variables (`DATABASE_URL`, `JWT_SECRET`, etc.).
 - Neon hosts the production PostgreSQL database.
-- Base URL: https://bitelyapi.onrender.com
+- Base URL: https://bitelyapi-docker.onrender.com
 
 ## Roadmap
 - Sign in with Apple
