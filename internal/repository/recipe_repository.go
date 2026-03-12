@@ -152,8 +152,8 @@ func (r *RecipeRepository) CreateRecipe(ctx context.Context, userID string, inpu
 		}
 
 		ingredients = append(ingredients, models.Ingredient{
-			ID: ingredientID,
-			Name: ingredient.Name,
+			ID:          ingredientID,
+			Name:        ingredient.Name,
 			Measurement: ingredient.Measurement,
 		})
 	}
@@ -224,7 +224,7 @@ func (r *RecipeRepository) UpdateRecipe(ctx context.Context, recipe models.Recip
 	}
 
 	for _, ingredient := range recipe.Ingredients {
-		name := strings.TrimSpace(recipe.Name)
+		name := strings.TrimSpace(ingredient.Name)
 		nameNorm := strings.ToLower(name)
 		_, err := transaction.ExecContext(ctx, `
 			INSERT INTO ingredients (id, recipe_id, name, measurement, name_norm)
