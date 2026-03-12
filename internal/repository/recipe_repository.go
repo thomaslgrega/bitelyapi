@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"errors"
+	"strings"
 
 	"github.com/thomaslgrega/bitelyapi/internal/models"
 )
@@ -139,11 +140,13 @@ func (r *RecipeRepository) CreateRecipe(ctx context.Context, userID string, inpu
 	ingredients := make([]models.Ingredient, 0, len(input.Ingredients))
 	for _, ingredient := range input.Ingredients {
 		var ingredientID string
+		name := strings.TrimSpace(ingredient.Name)
+		nameNorm := strings.ToLower(name)
 		err := transaction.QueryRowContext(ctx, `
-			INSERT INTO ingredients (recipe_id, name, measurement)
-			VALUES ($1, $2, $3)
+			INSERT INTO ingredients (recipe_id, name, measurement, name_norm)
+			VALUES ($1, $2, $3, $4)
 			RETURNING id
-		`, recipeID, ingredient.Name, ingredient.Measurement).Scan(&ingredientID)
+		`, recipeID, name, ingredient.Measurement, nameNorm).Scan(&ingredientID)
 		if err != nil {
 			return nil, err
 		}
@@ -221,10 +224,12 @@ func (r *RecipeRepository) UpdateRecipe(ctx context.Context, recipe models.Recip
 	}
 
 	for _, ingredient := range recipe.Ingredients {
+		name := strings.TrimSpace(recipe.Name)
+		nameNorm := strings.ToLower(name)
 		_, err := transaction.ExecContext(ctx, `
-			INSERT INTO ingredients (id, recipe_id, name, measurement)
-			VALUES ($1, $2, $3, $4)
-		`, ingredient.ID, recipe.ID, ingredient.Name, ingredient.Measurement)
+			INSERT INTO ingredients (id, recipe_id, name, measurement, name_norm)
+			VALUES ($1, $2, $3, $4, $5)
+		`, ingredient.ID, recipe.ID, name, ingredient.Measurement, nameNorm)
 
 		if err != nil {
 			return err
