@@ -115,6 +115,6 @@ func VerifyAppleIdentityToken(tokenString string, bundleId string) (*AppleClaims
 	if !validAud {
 		return nil, errors.New("invalid audience")
 	}
-	
+
 	return claims, nil
 }

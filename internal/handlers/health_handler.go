@@ -4,7 +4,7 @@ import (
 	"net/http"
 )
 
-type HealthHandler struct {}
+type HealthHandler struct{}
 
 func NewHealthHandler() *HealthHandler {
 	return &HealthHandler{}

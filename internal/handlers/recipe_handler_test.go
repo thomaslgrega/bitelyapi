@@ -14,12 +14,12 @@ import (
 )
 
 type fakeRecipeRepo struct {
-	getRecipeByIDFunc         func(ctx context.Context, id string) (models.Recipe, error)
-	getRecipesByCategoryFunc  func(ctx context.Context, category string) ([]models.RecipeSummary, error)
-	getRecipesByUserIDFunc    func(ctx context.Context, userID string) ([]models.Recipe, error)
-	createRecipeFunc          func(ctx context.Context, userID string, input models.CreateRecipeInput) (*models.Recipe, error)
-	deleteRecipeFunc          func(ctx context.Context, id string, userID string) error
-	updateRecipeFunc          func(ctx context.Context, recipe models.Recipe, userID string) error
+	getRecipeByIDFunc        func(ctx context.Context, id string) (models.Recipe, error)
+	getRecipesByCategoryFunc func(ctx context.Context, category string) ([]models.RecipeSummary, error)
+	getRecipesByUserIDFunc   func(ctx context.Context, userID string) ([]models.Recipe, error)
+	createRecipeFunc         func(ctx context.Context, userID string, input models.CreateRecipeInput) (*models.Recipe, error)
+	deleteRecipeFunc         func(ctx context.Context, id string, userID string) error
+	updateRecipeFunc         func(ctx context.Context, recipe models.Recipe, userID string) error
 }
 
 func (f fakeRecipeRepo) GetRecipeById(ctx context.Context, id string) (models.Recipe, error) {

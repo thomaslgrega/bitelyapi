@@ -16,8 +16,8 @@ type JWTManager struct {
 func NewJWTManager(secretKey string, issuer string, ttl time.Duration) *JWTManager {
 	return &JWTManager{
 		secretKey: secretKey,
-		issuer: issuer,
-		ttl: ttl,
+		issuer:    issuer,
+		ttl:       ttl,
 	}
 }
 
@@ -29,9 +29,9 @@ func (m *JWTManager) CreateToken(userID string) (string, error) {
 	now := time.Now()
 	claims := Claims{
 		RegisteredClaims: jwt.RegisteredClaims{
-			Issuer: m.issuer,
-			Subject: userID,
-			IssuedAt: jwt.NewNumericDate(now),
+			Issuer:    m.issuer,
+			Subject:   userID,
+			IssuedAt:  jwt.NewNumericDate(now),
 			ExpiresAt: jwt.NewNumericDate(now.Add(m.ttl)),
 		},
 	}

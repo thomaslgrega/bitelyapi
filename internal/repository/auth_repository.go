@@ -27,7 +27,7 @@ func (r *AuthRepository) FindOrCreateUser(ctx context.Context, appleSub string, 
 	if err == nil {
 		return user, nil
 	}
-	
+
 	if err != sql.ErrNoRows {
 		return user, err
 	}
