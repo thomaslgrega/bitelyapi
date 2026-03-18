@@ -1,6 +1,7 @@
 package handlers
 
 import (
+	"context"
 	"database/sql"
 	"encoding/json"
 	"errors"
@@ -8,14 +9,22 @@ import (
 
 	"github.com/thomaslgrega/bitelyapi/internal/middleware"
 	"github.com/thomaslgrega/bitelyapi/internal/models"
-	"github.com/thomaslgrega/bitelyapi/internal/repository"
 )
 
-type RecipeHandler struct {
-	repo *repository.RecipeRepository
+type recipeRepository interface {
+	GetRecipeById(ctx context.Context, id string) (models.Recipe, error)
+	GetRecipesByCategory(ctx context.Context, category string) ([]models.RecipeSummary, error)
+	GetRecipesByUserID(ctx context.Context, userID string) ([]models.Recipe, error)
+	CreateRecipe(ctx context.Context, userID string, input models.CreateRecipeInput) (*models.Recipe, error)
+	DeleteRecipe(ctx context.Context, id string, userID string) error
+	UpdateRecipe(ctx context.Context, recipe models.Recipe, userID string) error
 }
 
-func NewRecipeHandler(repo *repository.RecipeRepository) *RecipeHandler {
+type RecipeHandler struct {
+	repo recipeRepository
+}
+
+func NewRecipeHandler(repo recipeRepository) *RecipeHandler {
 	return &RecipeHandler{repo: repo}
 }
 
