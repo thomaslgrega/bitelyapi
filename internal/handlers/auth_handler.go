@@ -1,6 +1,7 @@
 package handlers
 
 import (
+	"context"
 	"database/sql"
 	"encoding/json"
 	"errors"
@@ -9,15 +10,22 @@ import (
 
 	"github.com/thomaslgrega/bitelyapi/internal/auth"
 	"github.com/thomaslgrega/bitelyapi/internal/middleware"
-	"github.com/thomaslgrega/bitelyapi/internal/repository"
+	"github.com/thomaslgrega/bitelyapi/internal/models"
 )
 
+type authRepository interface {
+	FindOrCreateUser(ctx context.Context, appleSub string, email *string, firstName *string, lastName *string) (models.User, error)
+	CreateUserWithPassword(ctx context.Context, email string, passwordHash string) (models.User, error)
+	GetUserByEmail(ctx context.Context, email string) (models.User, error)
+	GetUserByID(ctx context.Context, id string) (models.User, error)
+}
+
 type AuthHandler struct {
-	repo       *repository.AuthRepository
+	repo       authRepository
 	jwtManager *auth.JWTManager
 }
 
-func NewAuthHandler(repo *repository.AuthRepository, jwtManager *auth.JWTManager) *AuthHandler {
+func NewAuthHandler(repo authRepository, jwtManager *auth.JWTManager) *AuthHandler {
 	return &AuthHandler{
 		repo:       repo,
 		jwtManager: jwtManager,
