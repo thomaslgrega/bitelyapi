@@ -6,8 +6,10 @@ import (
 	"database/sql"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
+	"reflect"
 	"testing"
 
 	"github.com/thomaslgrega/bitelyapi/internal/models"
@@ -295,6 +297,129 @@ func TestRecipeHandlerUpdateRecipe(t *testing.T) {
 
 		if rec.Code != http.StatusNotFound {
 			t.Fatalf("expected status %d, got %d", http.StatusNotFound, rec.Code)
+		}
+	})
+}
+
+// recipeStore is a fake repository that keeps what it is given, so a test can
+// create a recipe and then fetch it back the way a real client would.
+type recipeStore struct {
+	fakeRecipeRepo
+	recipes map[string]models.Recipe
+}
+
+func newRecipeStore() *recipeStore {
+	return &recipeStore{recipes: make(map[string]models.Recipe)}
+}
+
+func (s *recipeStore) CreateRecipe(ctx context.Context, userID string, input models.CreateRecipeInput) (*models.Recipe, error) {
+	ingredients := make([]models.Ingredient, 0, len(input.Ingredients))
+	for i, ingredient := range input.Ingredients {
+		ingredients = append(ingredients, models.Ingredient{
+			ID:          fmt.Sprintf("ingredient-%d", i+1),
+			Name:        ingredient.Name,
+			Measurement: ingredient.Measurement,
+		})
+	}
+
+	recipe := models.Recipe{
+		ID:            "recipe-1",
+		UserID:        userID,
+		Name:          input.Name,
+		Category:      input.Category,
+		Instructions:  input.Instructions,
+		ThumbnailUrl:  input.ThumbnailUrl,
+		Ingredients:   ingredients,
+		Calories:      input.Calories,
+		TotalCookTime: input.TotalCookTime,
+	}
+	s.recipes[recipe.ID] = recipe
+	return &recipe, nil
+}
+
+func (s *recipeStore) GetRecipeById(ctx context.Context, id string) (models.Recipe, error) {
+	recipe, ok := s.recipes[id]
+	if !ok {
+		return models.Recipe{}, sql.ErrNoRows
+	}
+	return recipe, nil
+}
+
+func TestRecipeHandlerCreateRecipeTrimsNames(t *testing.T) {
+	t.Run("create response carries the stored names", func(t *testing.T) {
+		h := NewRecipeHandler(newRecipeStore())
+
+		body := `{"name":"  Chicken Dinner ","category":"dinner","ingredients":[{"name":"  Chicken Breast ","measurement":"2 lbs"}]}`
+		req := httptest.NewRequest(http.MethodPost, "/recipes", bytes.NewBufferString(body))
+		rec := authedRequest(t, req, h.CreateRecipe)
+
+		if rec.Code != http.StatusCreated {
+			t.Fatalf("expected status %d, got %d", http.StatusCreated, rec.Code)
+		}
+
+		var created models.Recipe
+		if err := json.Unmarshal(rec.Body.Bytes(), &created); err != nil {
+			t.Fatalf("failed to decode created recipe: %v", err)
+		}
+		if created.Name != "Chicken Dinner" {
+			t.Fatalf("expected trimmed recipe name, got %q", created.Name)
+		}
+		if len(created.Ingredients) != 1 {
+			t.Fatalf("expected 1 ingredient, got %d", len(created.Ingredients))
+		}
+		if created.Ingredients[0].Name != "Chicken Breast" {
+			t.Fatalf("expected trimmed ingredient name, got %q", created.Ingredients[0].Name)
+		}
+
+		fetchReq := httptest.NewRequest(http.MethodGet, "/recipes/"+created.ID, nil)
+		fetchReq.SetPathValue("id", created.ID)
+		fetchRec := httptest.NewRecorder()
+		h.GetRecipeById(fetchRec, fetchReq)
+
+		if fetchRec.Code != http.StatusOK {
+			t.Fatalf("expected status %d, got %d", http.StatusOK, fetchRec.Code)
+		}
+		var fetched models.Recipe
+		if err := json.Unmarshal(fetchRec.Body.Bytes(), &fetched); err != nil {
+			t.Fatalf("failed to decode fetched recipe: %v", err)
+		}
+		if !reflect.DeepEqual(created, fetched) {
+			t.Fatalf("create response %#v does not match fetch %#v", created, fetched)
+		}
+	})
+
+	t.Run("rejects a whitespace-only name", func(t *testing.T) {
+		h := NewRecipeHandler(newRecipeStore())
+		req := httptest.NewRequest(http.MethodPost, "/recipes", bytes.NewBufferString(`{"name":"   ","category":"dinner"}`))
+		rec := authedRequest(t, req, h.CreateRecipe)
+
+		if rec.Code != http.StatusBadRequest {
+			t.Fatalf("expected status %d, got %d", http.StatusBadRequest, rec.Code)
+		}
+	})
+}
+
+func TestRecipeHandlerUpdateRecipeTrimsNames(t *testing.T) {
+	t.Run("trims recipe and ingredient names before storing", func(t *testing.T) {
+		h := NewRecipeHandler(fakeRecipeRepo{
+			updateRecipeFunc: func(ctx context.Context, recipe models.Recipe, userID string) error {
+				if recipe.Name != "Chicken Dinner" {
+					t.Fatalf("expected trimmed recipe name, got %q", recipe.Name)
+				}
+				if len(recipe.Ingredients) != 1 || recipe.Ingredients[0].Name != "Chicken Breast" {
+					t.Fatalf("expected trimmed ingredient name, got %#v", recipe.Ingredients)
+				}
+				return nil
+			},
+		})
+
+		body := `{"name":"  Chicken Dinner ","category":"dinner","ingredients":[{"id":"ingredient-1","name":"  Chicken Breast ","measurement":"2 lbs"}]}`
+		req := httptest.NewRequest(http.MethodPut, "/recipes/recipe-1", bytes.NewBufferString(body))
+		req.SetPathValue("id", "recipe-1")
+		rec := authedRequest(t, req, h.UpdateRecipe)
+
+		if rec.Code != http.StatusNoContent {
+			t.Fatalf("expected status %d, got %d", http.StatusNoContent, rec.Code)
 		}
 	})
 }
