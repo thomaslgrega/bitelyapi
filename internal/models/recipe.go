@@ -14,9 +14,9 @@ type Recipe struct {
 	TotalCookTime int          `json:"total_cook_time,omitempty"`
 }
 
-// Normalize trims the names a client sent so the value validated, the value
+// TrimNames trims the names a client sent so the value validated, the value
 // stored, and the value returned are all the same string.
-func (r *Recipe) Normalize() {
+func (r *Recipe) TrimNames() {
 	r.Name = strings.TrimSpace(r.Name)
 	for i := range r.Ingredients {
 		r.Ingredients[i].Name = strings.TrimSpace(r.Ingredients[i].Name)

@@ -102,7 +102,7 @@ func (h *RecipeHandler) CreateRecipe(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "invalid JSON", http.StatusBadRequest)
 		return
 	}
-	input.Normalize()
+	input.TrimNames()
 
 	if input.Name == "" || input.Category == "" {
 		http.Error(w, "Name and Category are required", http.StatusBadRequest)
@@ -160,7 +160,7 @@ func (h *RecipeHandler) UpdateRecipe(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "invalid JSON", http.StatusBadRequest)
 		return
 	}
-	recipe.Normalize()
+	recipe.TrimNames()
 
 	id := r.PathValue("id")
 	if id == "" {
