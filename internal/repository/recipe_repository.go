@@ -141,12 +141,11 @@ func (r *RecipeRepository) CreateRecipe(ctx context.Context, userID string, inpu
 	for _, ingredient := range input.Ingredients {
 		var ingredientID string
 		name := strings.TrimSpace(ingredient.Name)
-		nameNorm := strings.ToLower(name)
 		err := transaction.QueryRowContext(ctx, `
-			INSERT INTO ingredients (recipe_id, name, measurement, name_norm)
-			VALUES ($1, $2, $3, $4)
+			INSERT INTO ingredients (recipe_id, name, measurement)
+			VALUES ($1, $2, $3)
 			RETURNING id
-		`, recipeID, name, ingredient.Measurement, nameNorm).Scan(&ingredientID)
+		`, recipeID, name, ingredient.Measurement).Scan(&ingredientID)
 		if err != nil {
 			return nil, err
 		}
@@ -225,11 +224,10 @@ func (r *RecipeRepository) UpdateRecipe(ctx context.Context, recipe models.Recip
 
 	for _, ingredient := range recipe.Ingredients {
 		name := strings.TrimSpace(ingredient.Name)
-		nameNorm := strings.ToLower(name)
 		_, err := transaction.ExecContext(ctx, `
-			INSERT INTO ingredients (id, recipe_id, name, measurement, name_norm)
-			VALUES ($1, $2, $3, $4, $5)
-		`, ingredient.ID, recipe.ID, name, ingredient.Measurement, nameNorm)
+			INSERT INTO ingredients (id, recipe_id, name, measurement)
+			VALUES ($1, $2, $3, $4)
+		`, ingredient.ID, recipe.ID, name, ingredient.Measurement)
 
 		if err != nil {
 			return err

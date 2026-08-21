@@ -388,7 +388,7 @@ Postgres's only job is to reduce the corpus to a candidate set. It does not comp
 
 Candidate narrowing is deliberately **looser** than final scoring: a Recipe is a candidate if it has at least one Ingredient whose `name_norm` is trigram-similar to at least one submitted term. Candidates are capped at a generous ceiling before scoring, so a pantry of common foods cannot pull the whole corpus into memory.
 
-`ingredients.name_norm` is populated as `lower(trim(name))` only — it is not the normalization in section 1, and must not be mistaken for it. It exists as a narrowing surface, nothing more.
+`ingredients.name_norm` is a generated column, `lower(btrim(name, E' \t\r\n'))` only — it is not the normalization in section 1, and must not be mistaken for it. Postgres derives it from `name`, so no writer can leave it NULL or set it inconsistently. It exists as a narrowing surface, nothing more.
 
 ### Migration 013's index is the wrong index
 
