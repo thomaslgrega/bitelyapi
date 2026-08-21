@@ -1,0 +1,9 @@
+# Hybrid recipe matching with a duplicated ranking function
+
+A user's Recipes are split across two stores the server cannot see at once: the shared corpus in Postgres, and their Private and Saved Recipes in SwiftData on the device. Matching a set of Pantry Items against both means either shipping the user's local library to the server on every search, or pulling the whole corpus down to the device. We rejected both and match each store where its data lives: Postgres ranks corpus Recipes, the iOS client ranks its local Recipes, and the client merges the two ranked lists into one, deduplicating a Saved Recipe against its corpus original by the corpus Recipe's identity.
+
+The cost is that the Coverage ranking function exists twice, in Go and in Swift, and the two must stay in step or the merged list becomes incoherent. We accept this deliberately: it is the price of not moving private data to the server and not moving the corpus to the device. The algorithm is specified once in `docs/` with shared test vectors, and both implementations are tested against the same fixtures. That spec is the source of truth, not either implementation.
+
+## Consequences
+
+Ranking is not client-owned, despite the merge happening on the client. Postgres applies the same Coverage formula and returns only its top results, so the server decides which corpus Recipes the user is ever able to see; the client's sort only orders what it was already given. Results are capped at a fixed page with no pagination, because a second page would be entirely remote — the local pass is exhaustive on the first — and that asymmetry would be inexplicable to the user. When the device is offline the local pass still succeeds, so the client shows local Matches with an explicit notice rather than an error or a silently short list.
