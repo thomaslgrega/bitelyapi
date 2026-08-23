@@ -101,7 +101,7 @@ Preparation and size words that describe how a food arrives rather than what it 
 chopped, diced, minced, sliced, shredded, grated, crushed, ground,
 mashed, cubed, julienned, halved, quartered, trimmed, peeled, seeded,
 pitted, stemmed, rinsed, drained, softened, melted, beaten, packed,
-sifted, toasted, roasted, cooked, uncooked, raw
+sifted, toasted, roasted, cooked, uncooked, raw, boneless, skinless
 
 // Condition and quality
 fresh, freshly, frozen, dried, ripe, unsalted, unsweetened, plain,
@@ -115,6 +115,8 @@ thickly, lightly, heaping, scant
 optional, divided, plus, more, needed, garnish, and, or, of, the, a,
 an, for, with, into, in, on, about, approximately
 ```
+
+`boneless` and `skinless` are here because the example rows in section 1 and section 6.2 always assumed they were, and because they are the two commonest descriptors on a packaged cut of meat. Leaving them out changed no MATCH verdict — nobody submits `boneless` as a Pantry Item, and neither token scores against a food — but it did change Coverage: `Chicken breasts` and `Boneless, skinless chicken breasts` on one Recipe are one Ingredient Term with them dropped and two without, and the denominator decides the rank.
 
 Explicitly **not** stopwords, and each for a reason:
 
@@ -204,6 +206,8 @@ Coverage = |matched Ingredient Terms| / |Recipe's Ingredient Terms|
 ```
 
 An Ingredient Term is **matched** if at least one Pantry Item matches it (section 4), and is a **Missing Ingredient** otherwise. A Recipe with zero Ingredient Terms after the discard rule has Coverage `0` and is not returned as a Match.
+
+A Recipe the Pantry covers none of is not returned either. Narrowing is looser than scoring (section 8), so a candidate can arrive with nothing matched, and a Match with Coverage `0` offers the user a Recipe they hold no Ingredient for. Both implementations drop it.
 
 **Staples are not excluded.** The term is defined in `CONTEXT.md`, but identifying Staples reliably needs the deferred Ingredient Catalog, and ADR-0002 records that a hardcoded list was rejected as a second source of truth in two languages. Until the catalog exists, salt counts against Coverage like anything else.
 

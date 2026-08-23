@@ -26,6 +26,7 @@ Health check: `GET /health`
 ### Public
 - `GET /recipes?category=Dessert` — list recipe summaries by category
 - `GET /recipes/{id}` — get full recipe details (includes ingredients)
+- `POST /recipes/match` — match a pantry against the recipe corpus. Body is a JSON list of raw ingredient strings, e.g. `["chicken", "rice", "onion"]`; the response is up to 50 recipe cards ordered by coverage, each with its matched ingredients, missing ingredients, and coverage. See `docs/ingredient-matching-algorithm.md`.
 
 ### Auth
 - `POST /auth/register`
