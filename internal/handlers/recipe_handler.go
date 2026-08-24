@@ -205,6 +205,10 @@ func (h *RecipeHandler) MatchRecipes(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Blanks are stripped before the list is measured, not after, so a list of
+	// nothing but blank strings is rejected the same as an empty one. ADR-0003
+	// records why: such a request carries no Pantry Item at all. Moving this
+	// below the check turns those requests into an empty 200.
 	submitted := make([]string, 0, len(pantryItems))
 	for _, item := range pantryItems {
 		if trimmed := strings.TrimSpace(item); trimmed != "" {

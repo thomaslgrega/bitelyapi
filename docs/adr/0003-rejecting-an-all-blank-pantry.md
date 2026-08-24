@@ -1,0 +1,13 @@
+# Rejecting an all-blank pantry instead of answering it empty
+
+`POST /recipes/match` has two ways to answer a pantry that yields no Ingredient Terms: reject it as a bad request, or accept it and return no Matches. Which one a list of blank strings gets was specified twice and differently. Issue 5 set the acceptance criterion that an empty **or all-blank** pantry returns `400`, and the handler implements it by trimming blanks away before it measures the list. Section 6.3 Scenario D of `docs/ingredient-matching-algorithm.md` put `""` and `"   "` in the same class as `"to taste"` and gave the whole class `200` with an empty list. Both were written deliberately, so `["", "   "]` had two correct answers.
+
+The handler's behaviour stands and the document is amended. `"to taste"` is a Pantry Item: the user typed a real string, and the reason it produces no Ingredient Terms is a normalization rule the caller cannot be expected to know, so an empty `200` is the honest answer. `""` is not a Pantry Item at all — nothing survives to normalize, and a list containing only such entries carries no pantry, which makes it the same request as `[]` wearing different JSON. Telling that caller their request was malformed points at the bug on their side; a `200` with an empty list looks like a pantry that matched nothing and hides it.
+
+The document is not wrong about its own subject. Scenario D's table is about normalization, and its `""` row is correct that a blank contributes no Ingredient Terms; it overreached only in attaching a status code to that class, which is an HTTP concern the document otherwise stays out of. Its authority over the algorithm — the claim that neither implementation is authoritative, the document is — is untouched by this.
+
+## Consequences
+
+Scenario D now splits the class into two rows, one per status code, so the Swift implementation reads the same rule the Go handler enforces. Those two rows are the one place the document states a status code deliberately rather than in passing, which is the overreach above committed knowingly and in a bounded way: the boundary between a malformed request and an empty answer is exactly where normalization and the HTTP contract meet, so it cannot be specified in only one of them. A blank appearing beside a real Pantry Item, or beside a stopword-only one, is still discarded silently and never turns the request into a `400`; only a list with nothing else in it is rejected.
+
+The handler therefore keeps trimming blanks before its emptiness check rather than after. That ordering is the whole mechanism, and it is easy to "clean up" into the document's original behaviour by moving three lines, so the handler test names this ADR as the reason the order matters.
