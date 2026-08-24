@@ -154,17 +154,18 @@ func TestRecipeHandlerMatchRecipesWithAPantryThatMatchesNothing(t *testing.T) {
 	h := NewRecipeHandler(fakeRecipeRepo{
 		getMatchCandidatesFunc: func(ctx context.Context, tokens []string, limit int) ([]models.MatchCandidate, error) {
 			// Narrowing is looser than scoring, so it can hand back a Recipe
-			// that then covers nothing.
+			// that then covers nothing. `beef` against `chicken broth` is the
+			// section 6.2 row where no token pair clears the threshold.
 			return []models.MatchCandidate{
 				{
-					Recipe:      models.RecipeSummary{ID: "chowder", Name: "Corn Chowder"},
-					Ingredients: []string{"cornstarch", "cream"},
+					Recipe:      models.RecipeSummary{ID: "broth", Name: "Chicken Broth"},
+					Ingredients: []string{"chicken", "broth"},
 				},
 			}, nil
 		},
 	})
 
-	rec := matchRequest(t, h, `["corn"]`)
+	rec := matchRequest(t, h, `["beef"]`)
 
 	if rec.Code != http.StatusOK {
 		t.Fatalf("expected status %d, got %d", http.StatusOK, rec.Code)

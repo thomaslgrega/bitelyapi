@@ -6,13 +6,10 @@ import (
 )
 
 // The scenarios below are the ranking fixtures of
-// docs/ingredient-matching-algorithm.md section 6.3, adapted to the exact-token
-// scoring this ticket implements: pantry items that the document matches by
-// trigram similarity are written here in the form the Ingredient uses, so the
-// pair still matches. Scenario A is unchanged, Scenario B drops the rows whose
-// ordering depends on a fuzzy pair and uses `egg` for `eggs`, Scenario C is
-// unchanged. When fuzzy scoring lands, these revert to the document's own
-// inputs.
+// docs/ingredient-matching-algorithm.md section 6.3, with the document's own
+// inputs: a pantry of `eggs` scoring against an Ingredient named `egg` is the
+// plural path exercised inside a Coverage computation rather than in
+// isolation.
 func candidate(id, name string, ingredients ...string) Candidate {
 	return Candidate{RecipeID: id, Name: name, IngredientNames: ingredients}
 }
@@ -73,21 +70,66 @@ func TestRankBreaksCoverageTiesOnMissingCount(t *testing.T) {
 	}
 }
 
-// Scenario B, restricted to the exact-token pairs this ticket scores: fully
-// covered Recipes come first and tie on the Recipe name.
-func TestRankBreaksRemainingTiesOnNameThenID(t *testing.T) {
-	pantry := []string{"egg", "butter", "flour", "sugar", "milk"}
+// Scenario B: fully covered Recipes come first, ties fall to the Recipe name,
+// and no Recipe is dropped for having three Missing Ingredients.
+func TestRankPutsFullCoverageFirstThenBreaksTiesOnName(t *testing.T) {
+	pantry := []string{"eggs", "butter", "flour", "sugar", "milk"}
 	candidates := []Candidate{
-		candidate("crepes", "Crepes", "egg", "flour", "milk", "butter"),
-		candidate("pound-cake", "Pound Cake", "butter", "sugar", "egg", "flour", "vanilla", "salt"),
+		candidate("waffles", "Waffles", "flour", "eggs", "milk", "butter", "sugar", "baking soda", "salt", "cinnamon"),
+		candidate("crepes", "Crepes", "eggs", "flour", "milk", "butter"),
+		candidate("pound-cake", "Pound Cake", "butter", "sugar", "eggs", "flour", "vanilla", "salt"),
+		candidate("pancakes", "Pancakes", "flour", "sugar", "eggs", "milk", "butter", "baking powder", "salt", "oil"),
 		candidate("butter-cookies", "Butter Cookies", "butter", "sugar", "flour", "egg"),
 	}
 
 	matches := Rank(pantry, candidates)
 
-	want := []string{"butter-cookies", "crepes", "pound-cake"}
+	want := []string{"butter-cookies", "crepes", "pound-cake", "pancakes", "waffles"}
 	if got := rankedIDs(matches); !reflect.DeepEqual(got, want) {
 		t.Fatalf("ranked %v, want %v", got, want)
+	}
+
+	// Butter Cookies covers its `egg` Ingredient Term with the Pantry Item
+	// `eggs`, so full Coverage here is the plural path inside a Coverage
+	// computation rather than in isolation.
+	if got := matches[0].Coverage(); got != 1 {
+		t.Fatalf("Butter Cookies coverage = %v, want 1", got)
+	}
+	if got := matches[2].Missing; !reflect.DeepEqual(got, []string{"vanilla", "salt"}) {
+		t.Fatalf("Pound Cake missing = %v, want vanilla and salt", got)
+	}
+	if got := len(matches[3].Missing); got != 3 {
+		t.Fatalf("Pancakes missing %d, want 3: there is no cap on Missing Ingredients", got)
+	}
+
+	// Pancakes and Waffles tie on Coverage (5/8) and on Missing Ingredient
+	// count (3), so this pair reaches the name tie-break with nothing else
+	// separating it.
+	pancakes, waffles := matches[3], matches[4]
+	if len(pancakes.Matched) != len(waffles.Matched) || len(pancakes.Missing) != len(waffles.Missing) {
+		t.Fatalf("Pancakes %d/%d and Waffles %d/%d should tie on both counts",
+			len(pancakes.Matched), len(pancakes.Missing), len(waffles.Matched), len(waffles.Missing))
+	}
+}
+
+// Section 5: the match is binary. A token pair at 1.0 and a token pair at
+// exactly the threshold each make their Ingredient Term matched and nothing
+// more, so Coverage stays a ratio the interface can read out loud.
+func TestRankGivesNoPartialCreditForAWeakMatch(t *testing.T) {
+	// egg/egg is 1.0; egg/eggplant is exactly 0.3, the boundary row of section
+	// 6.1. Fractional credit would put Coverage somewhere below 2/3.
+	pantry := []string{"egg"}
+	candidates := []Candidate{
+		candidate("shakshuka", "Shakshuka", "egg", "eggplant", "tomato"),
+	}
+
+	matches := Rank(pantry, candidates)
+
+	if got := matches[0].Matched; !reflect.DeepEqual(got, []string{"egg", "eggplant"}) {
+		t.Fatalf("matched = %v, want both the exact and the boundary pair", got)
+	}
+	if got := matches[0].Coverage(); got != 2.0/3.0 {
+		t.Fatalf("coverage = %v, want exactly 2/3: a weak match counts wholly, not partly", got)
 	}
 }
 
