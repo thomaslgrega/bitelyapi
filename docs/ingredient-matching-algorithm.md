@@ -409,7 +409,7 @@ CREATE INDEX ingredients_name_norm_idx ON ingredients(name_norm);
 
 That is a btree index. Btree serves equality and prefix range scans. It cannot serve trigram similarity — the `%` operator and `similarity()` will sequential-scan straight past it. It is not a substitute and it is not a starting point.
 
-Narrowing requires:
+Narrowing needs a GIN trigram index, which migration 015 added:
 
 ```sql
 CREATE EXTENSION IF NOT EXISTS pg_trgm;
@@ -417,7 +417,7 @@ CREATE INDEX ingredients_name_norm_trgm_idx
   ON ingredients USING gin (name_norm gin_trgm_ops);
 ```
 
-The btree index can stay; it costs a little write throughput and serves nothing this feature needs.
+The btree index stays; it costs a little write throughput and serves nothing this feature needs.
 
 ### The Swift side
 
