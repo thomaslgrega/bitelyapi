@@ -88,40 +88,66 @@ func Rank(pantryItems []string, candidates []Candidate) []Match {
 // to, sorted. It is what narrowing searches the corpus on — narrowing needs
 // the tokens, not the Terms, because it compares one word at a time.
 func PantryTokens(items []string) []string {
-	held := newPantry(items)
+	return distinctTokens(items)
+}
 
-	tokens := make([]string, 0, len(held.tokens))
-	for token := range held.tokens {
-		tokens = append(tokens, token)
+// distinctTokens normalizes every raw string and returns the tokens they yield
+// between them, deduplicated across the whole list and sorted.
+func distinctTokens(items []string) []string {
+	seen := make(map[string]struct{}, len(items))
+	tokens := make([]string, 0, len(items))
+
+	for _, item := range items {
+		for _, token := range Normalize(item).Tokens() {
+			if _, duplicate := seen[token]; duplicate {
+				continue
+			}
+			seen[token] = struct{}{}
+			tokens = append(tokens, token)
+		}
 	}
 	sort.Strings(tokens)
 
 	return tokens
 }
 
-// a pantry is the set of tokens the user holds, built once per request.
+// a pantry is what the user holds, as the trigrams of its distinct tokens.
+// Only the trigrams are kept, because scoring never looks at a pantry token as
+// a string: it compares every one of them against every Ingredient Term token,
+// so extracting each token's trigrams once per request rather than once per
+// comparison is the whole reason this type exists.
 type pantry struct {
-	tokens map[string]struct{}
+	tokens []trigramSet
 }
 
 func newPantry(items []string) pantry {
-	tokens := make(map[string]struct{}, len(items))
-	for _, item := range items {
-		for _, token := range Normalize(item).Tokens() {
-			tokens[token] = struct{}{}
-		}
+	distinct := distinctTokens(items)
+
+	held := pantry{tokens: make([]trigramSet, 0, len(distinct))}
+	for _, token := range distinct {
+		held.tokens = append(held.tokens, trigrams(token))
 	}
-	return pantry{tokens: tokens}
+
+	return held
 }
 
-// holds reports whether the pantry covers an Ingredient Term: any Pantry Item
-// token against any Ingredient Term token. Scoring is exact token equality for
-// this ticket; the trigram similarity of ADR-0002 replaces this comparison and
-// nothing else.
+// holds reports whether the pantry covers an Ingredient Term. Comparison is
+// per token, never per whole string: a Term matches when any one Pantry Item
+// token clears MatchThreshold against any one of its tokens, and the first
+// such pair settles it. Section 4 explains why comparing the whole strings
+// fails the case the feature exists for — the descriptors in `boneless
+// skinless chicken breasts` flood the trigram union and bury the
+// `chicken`/`chicken` pair that decides it.
+//
+// The verdict is binary. A pair at 0.99 and a pair at 0.31 both make the Term
+// matched and nothing more, because Coverage has to stay an integer ratio.
 func (p pantry) holds(term Term) bool {
 	for _, token := range term.Tokens() {
-		if _, ok := p.tokens[token]; ok {
-			return true
+		wanted := trigrams(token)
+		for _, pantryToken := range p.tokens {
+			if pantryToken.matches(wanted) {
+				return true
+			}
 		}
 	}
 	return false

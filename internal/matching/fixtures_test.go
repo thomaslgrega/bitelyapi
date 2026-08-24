@@ -10,12 +10,9 @@ import (
 // implementations, so it is consumed here as a table rather than paraphrased
 // into prose assertions.
 //
-// Each row asserts two things. The normalized pair is asserted for every row —
-// that column is normalization's output and is entirely settled by this
-// ticket. The verdict is asserted only for the rows exact-token scoring can
-// decide; the four rows whose verdict rests on trigram similarity carry
-// needsSimilarity and have their verdict deferred to the fuzzy-matching
-// ticket, which will drop the flag rather than rewrite the row.
+// Each row asserts two things: that the raw strings normalize to the token
+// sets the table's third column names, and that section 4's per-token
+// comparison reaches the table's verdict on them.
 func TestSection62Fixtures(t *testing.T) {
 	tests := []struct {
 		pantryItem       string
@@ -23,36 +20,35 @@ func TestSection62Fixtures(t *testing.T) {
 		pantryTokens     []string
 		ingredientTokens []string
 		match            bool
-		needsSimilarity  bool
 		protects         string
 	}{
-		{"tomato", "tomato", []string{"tomato"}, []string{"tomato"}, true, false, "exact match"},
-		{"Tomato", "tomato", []string{"tomato"}, []string{"tomato"}, true, false, "casing"},
-		{"  ToMaTo  ", "Tomato", []string{"tomato"}, []string{"tomato"}, true, false, "surrounding whitespace and mixed case"},
-		{"tomato", "Tomatoes", []string{"tomato"}, []string{"tomatoes"}, true, true, "plural, sim 0.6"},
-		{"Tomatoes", "1 tomato, diced", []string{"tomatoes"}, []string{"tomato"}, true, true, "quantity and descriptor stripped from the Ingredient"},
-		{"chicken breast", "boneless skinless chicken breasts", []string{"breast", "chicken"}, []string{"breasts", "chicken"}, true, false, "the motivating case"},
-		{"chicken breast", "Boneless, Skinless Chicken Breasts", []string{"breast", "chicken"}, []string{"breasts", "chicken"}, true, false, "the motivating case, punctuated"},
-		{"2 Yellow Onions", "onion", []string{"onions", "yellow"}, []string{"onion"}, true, true, "quantity-prefixed input"},
-		{"1 1/2 cups all-purpose flour", "Flour", []string{"all", "flour", "purpose"}, []string{"flour"}, true, false, "fraction, measurement stopword, hyphen split"},
-		{"½ cup ⅓ milk", "Milk", []string{"milk"}, []string{"milk"}, true, false, "unicode fractions are boundaries, not digits"},
-		{"500g Beef", "ground beef", []string{"beef"}, []string{"beef"}, true, false, "digit-fused unit, and a descriptor on the Ingredient"},
-		{"chicken breast", "chicken stock", []string{"breast", "chicken"}, []string{"chicken", "stock"}, true, false, "the known false positive, asserted deliberately"},
-		{"heavy cream", "sour cream", []string{"cream", "heavy"}, []string{"cream", "sour"}, true, false, "shared head token decides it"},
-		{"olive oil", "vegetable oil", []string{"oil", "olive"}, []string{"oil", "vegetable"}, true, false, "same again"},
-		{"chicken", "chickpeas", []string{"chicken"}, []string{"chickpeas"}, true, true, "expected to be a non-match; is not"},
-		{"chicken", "chicken thighs", []string{"chicken"}, []string{"chicken", "thighs"}, true, false, "one token against a multi-token Term"},
-		{"tomato", "potato", []string{"tomato"}, []string{"potato"}, false, false, "near-miss that must not match"},
-		{"basil", "basmati rice", []string{"basil"}, []string{"basmati", "rice"}, false, false, "both token pairs below the bar"},
-		{"beef", "chicken broth", []string{"beef"}, []string{"broth", "chicken"}, false, false, "no token pair clears the bar"},
-		{"", "tomato", nil, []string{"tomato"}, false, false, "empty input matches nothing"},
-		{"   ", "tomato", nil, []string{"tomato"}, false, false, "whitespace-only input matches nothing"},
-		{",.-/()", "tomato", nil, []string{"tomato"}, false, false, "punctuation-only input normalizes to empty"},
-		{"2 1/2", "tomato", nil, []string{"tomato"}, false, false, "digits-only input normalizes to empty"},
-		{"freshly chopped", "fresh chopped tomato", nil, []string{"tomato"}, false, false, "an all-stopword Pantry Item matches nothing, even sharing those stopwords"},
-		{"to taste", "salt", nil, []string{"salt"}, false, false, "measurement stopwords alone normalize to empty"},
-		{"tomato", "to taste", []string{"tomato"}, nil, false, false, "an Ingredient normalizing to empty is discarded entirely"},
-		{"Salt & Pepper", "black pepper", []string{"pepper", "salt"}, []string{"black", "pepper"}, true, false, "ampersand as a boundary; second token carries the match"},
+		{"tomato", "tomato", []string{"tomato"}, []string{"tomato"}, true, "exact match"},
+		{"Tomato", "tomato", []string{"tomato"}, []string{"tomato"}, true, "casing"},
+		{"  ToMaTo  ", "Tomato", []string{"tomato"}, []string{"tomato"}, true, "surrounding whitespace and mixed case"},
+		{"tomato", "Tomatoes", []string{"tomato"}, []string{"tomatoes"}, true, "plural, sim 0.6"},
+		{"Tomatoes", "1 tomato, diced", []string{"tomatoes"}, []string{"tomato"}, true, "quantity and descriptor stripped from the Ingredient"},
+		{"chicken breast", "boneless skinless chicken breasts", []string{"breast", "chicken"}, []string{"breasts", "chicken"}, true, "the motivating case"},
+		{"chicken breast", "Boneless, Skinless Chicken Breasts", []string{"breast", "chicken"}, []string{"breasts", "chicken"}, true, "the motivating case, punctuated"},
+		{"2 Yellow Onions", "onion", []string{"onions", "yellow"}, []string{"onion"}, true, "quantity-prefixed input"},
+		{"1 1/2 cups all-purpose flour", "Flour", []string{"all", "flour", "purpose"}, []string{"flour"}, true, "fraction, measurement stopword, hyphen split"},
+		{"½ cup ⅓ milk", "Milk", []string{"milk"}, []string{"milk"}, true, "unicode fractions are boundaries, not digits"},
+		{"500g Beef", "ground beef", []string{"beef"}, []string{"beef"}, true, "digit-fused unit, and a descriptor on the Ingredient"},
+		{"chicken breast", "chicken stock", []string{"breast", "chicken"}, []string{"chicken", "stock"}, true, "the known false positive, asserted deliberately"},
+		{"heavy cream", "sour cream", []string{"cream", "heavy"}, []string{"cream", "sour"}, true, "shared head token decides it"},
+		{"olive oil", "vegetable oil", []string{"oil", "olive"}, []string{"oil", "vegetable"}, true, "same again"},
+		{"chicken", "chickpeas", []string{"chicken"}, []string{"chickpeas"}, true, "expected to be a non-match; is not"},
+		{"chicken", "chicken thighs", []string{"chicken"}, []string{"chicken", "thighs"}, true, "one token against a multi-token Term"},
+		{"tomato", "potato", []string{"tomato"}, []string{"potato"}, false, "near-miss that must not match"},
+		{"basil", "basmati rice", []string{"basil"}, []string{"basmati", "rice"}, false, "both token pairs below the bar"},
+		{"beef", "chicken broth", []string{"beef"}, []string{"broth", "chicken"}, false, "no token pair clears the bar"},
+		{"", "tomato", nil, []string{"tomato"}, false, "empty input matches nothing"},
+		{"   ", "tomato", nil, []string{"tomato"}, false, "whitespace-only input matches nothing"},
+		{",.-/()", "tomato", nil, []string{"tomato"}, false, "punctuation-only input normalizes to empty"},
+		{"2 1/2", "tomato", nil, []string{"tomato"}, false, "digits-only input normalizes to empty"},
+		{"freshly chopped", "fresh chopped tomato", nil, []string{"tomato"}, false, "an all-stopword Pantry Item matches nothing, even sharing those stopwords"},
+		{"to taste", "salt", nil, []string{"salt"}, false, "measurement stopwords alone normalize to empty"},
+		{"tomato", "to taste", []string{"tomato"}, nil, false, "an Ingredient normalizing to empty is discarded entirely"},
+		{"Salt & Pepper", "black pepper", []string{"pepper", "salt"}, []string{"black", "pepper"}, true, "ampersand as a boundary; second token carries the match"},
 	}
 
 	for _, test := range tests {
@@ -62,11 +58,6 @@ func TestSection62Fixtures(t *testing.T) {
 			}
 			if got := Normalize(test.ingredientName).Tokens(); !sameTokens(got, test.ingredientTokens) {
 				t.Errorf("Normalize(%q) = %v, want %v", test.ingredientName, got, test.ingredientTokens)
-			}
-
-			if test.needsSimilarity {
-				t.Skipf("document's verdict is %v, but it rests on trigram similarity: %s",
-					verdict(test.match), test.protects)
 			}
 
 			got := matchesFixture(test.pantryItem, test.ingredientName)
@@ -92,13 +83,6 @@ func matchesFixture(pantryItem, ingredientName string) bool {
 	}})
 
 	return len(matches) == 1 && len(matches[0].Matched) == 1
-}
-
-func verdict(match bool) string {
-	if match {
-		return "MATCH"
-	}
-	return "no match"
 }
 
 // Colour and variety words are deliberately not stopwords: dropping them would
