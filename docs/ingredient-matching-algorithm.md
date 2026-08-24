@@ -48,7 +48,7 @@ Two lists, kept separate and named separately in both implementations, because t
 
 ### 2.1 `MeasurementStopwords`
 
-**Provenance: transcribed from this product's existing, already-reviewed measurement vocabulary — the `aliases` table of a `MeasurementUnit` enum written for the shopping list feature — rather than derived independently.** Issue 3's review comment records why: a second, independently derived measurement list would guarantee the Go and Swift implementations disagree on exactly the inputs the fixture table exists to protect. That enum is being retired from the iOS repo — it is commented out, nothing references it, and `measurement` is a plain `String` in every live model — but the transcription outlives it, and the list stands on its own.
+**Provenance: transcribed from this product's existing, already-reviewed measurement vocabulary — the `aliases` table of a `MeasurementUnit` enum written for the shopping list feature — rather than derived independently.** Issue 3's review comment records why: a second, independently derived measurement list would guarantee the Go and Swift implementations disagree on exactly the inputs the fixture table exists to protect. That enum has since been retired from the iOS repo — nothing referenced it, and `measurement` is a plain `String` in every live model — but the transcription outlives it, and the list stands on its own.
 
 **The list's live counterpart on the Swift side is `IngredientMatcher.measurementStopwords` in `Bitely-iOS/Bitely/Matching/IngredientMatcher.swift`**, the mirror of `MeasurementStopwords` in the Go package. Both are transcriptions of the list below; neither is upstream of it. Cite them when you need to find the list in code, not when you need to know what it should contain — for that, this section is the answer.
 
@@ -409,7 +409,7 @@ CREATE INDEX ingredients_name_norm_idx ON ingredients(name_norm);
 
 That is a btree index. Btree serves equality and prefix range scans. It cannot serve trigram similarity — the `%` operator and `similarity()` will sequential-scan straight past it. It is not a substitute and it is not a starting point.
 
-Narrowing requires:
+Narrowing needs a GIN trigram index, which migration 015 added:
 
 ```sql
 CREATE EXTENSION IF NOT EXISTS pg_trgm;
@@ -417,7 +417,7 @@ CREATE INDEX ingredients_name_norm_trgm_idx
   ON ingredients USING gin (name_norm gin_trgm_ops);
 ```
 
-The btree index can stay; it costs a little write throughput and serves nothing this feature needs.
+The btree index stays; it costs a little write throughput and serves nothing this feature needs.
 
 ### The Swift side
 
