@@ -19,8 +19,7 @@ docker-run:
 		-e JWT_SECRET="$(JWT_SECRET)" \
 		$(APP_NAME)
 
-docker-up: 
-	docker-build docker-run
+docker-up: docker-build docker-run
 
 docker-down:
 	-docker stop $(APP_NAME)
@@ -30,5 +29,5 @@ migrate-up:
 	migrate -path migrations -database "$(DATABASE_URL)" up
 
 migrate-down:
-	@if [ -z "$(DATABASE_URL)" ]; then echo "DATABASE_URL is required"; exit1; fi
+	@if [ -z "$(DATABASE_URL)" ]; then echo "DATABASE_URL is required"; exit 1; fi
 	migrate -path migrations -database "$(DATABASE_URL)" down 1
