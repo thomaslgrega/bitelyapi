@@ -105,8 +105,8 @@ func TestColourAndVarietyWordsSurviveNormalization(t *testing.T) {
 		{"beef broth", []string{"beef", "broth"}},
 		{"fat free yogurt", []string{"fat", "free", "yogurt"}},
 
-		// The document's one named loss: `whole` is a MeasurementUnit.piece
-		// alias, so it goes with the measurements. `flour` still matches.
+		// The document's one named loss: `whole` is a MeasurementStopwords
+		// entry, so it goes with the measurements. `flour` still matches.
 		{"whole wheat flour", []string{"flour", "wheat"}},
 	}
 

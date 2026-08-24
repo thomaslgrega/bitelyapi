@@ -48,9 +48,11 @@ Two lists, kept separate and named separately in both implementations, because t
 
 ### 2.1 `MeasurementStopwords`
 
-**Provenance: transcribed from the `aliases` table of the `MeasurementUnit` enum in `Bitely-iOS/Bitely/Models/Ingredient.swift`.** That enum is currently commented out — it was written for the shopping list feature and kept — but it is the existing, already-reviewed measurement vocabulary in this product, and issue 3's review comment records why it is the source: deriving a second measurement list independently would guarantee the Go and Swift implementations disagree on exactly the inputs the fixture table exists to protect.
+**Provenance: transcribed from this product's existing, already-reviewed measurement vocabulary — the `aliases` table of a `MeasurementUnit` enum written for the shopping list feature — rather than derived independently.** Issue 3's review comment records why: a second, independently derived measurement list would guarantee the Go and Swift implementations disagree on exactly the inputs the fixture table exists to protect. That enum is being retired from the iOS repo — it is commented out, nothing references it, and `measurement` is a plain `String` in every live model — but the transcription outlives it, and the list stands on its own.
 
-Multi-word aliases (`fl oz`, `fluid ounce`, `fl. oz`, `to taste`) are split into their component tokens here, because normalization has already tokenized by the time stopwords are applied. The `MeasurementUnit.none` alias `[""]` contributes nothing.
+**The list's live counterpart on the Swift side is `IngredientMatcher.measurementStopwords` in `Bitely-iOS/Bitely/Matching/IngredientMatcher.swift`**, the mirror of `MeasurementStopwords` in the Go package. Both are transcriptions of the list below; neither is upstream of it. Cite them when you need to find the list in code, not when you need to know what it should contain — for that, this section is the answer.
+
+Multi-word aliases (`fl oz`, `fluid ounce`, `fl. oz`, `to taste`) are split into their component tokens here, because normalization has already tokenized by the time stopwords are applied. The source enum's empty alias `[""]`, for a quantity with no unit, contributes nothing.
 
 ```
 // Volume
@@ -90,7 +92,7 @@ Notes on transcription:
 - `oz` covers the mass unit; `floz` covers the collapsed alias `fl. oz` written without the boundary. Both are needed because normalization splits `fl. oz` into `fl` + `oz` but a user typing `floz` produces one token.
 - Single-letter entries (`t`, `c`, `l`, `g`) are aggressive but safe: no Ingredient Term of value is a single letter, and dropping them prevents `1c` from surviving as the token `c`.
 
-When the `MeasurementUnit` enum changes, this list changes, and both implementations change with it. See section 8.
+When this list changes, it changes here first, and both transcriptions — Go's `MeasurementStopwords` and Swift's `IngredientMatcher.measurementStopwords` — change with it in the same review cycle. See section 9.
 
 ### 2.2 `DescriptorStopwords`
 
@@ -121,7 +123,7 @@ an, for, with, into, in, on, about, approximately
 Explicitly **not** stopwords, and each for a reason:
 
 - `salted`, `sweetened`, `fat`, `cream`, `stock`, `broth` — these are foods or distinguish foods.
-- `sweet`, `baby`, `wild`, `whole` grain qualifiers — except `whole`, which is already a `MeasurementUnit.piece` alias and is dropped by that list. This is a known small loss: `whole wheat flour` normalizes to `{wheat, flour}`. Acceptable, since `flour` still matches.
+- `sweet`, `baby`, `wild`, `whole` grain qualifiers — except `whole`, which is already a `MeasurementStopwords` entry, transcribed as a `piece` alias, and is dropped by that list. This is a known small loss: `whole wheat flour` normalizes to `{wheat, flour}`. Acceptable, since `flour` still matches.
 - Colour words — see section 1.
 
 ---
@@ -191,7 +193,9 @@ One named constant, in both implementations, with this name. The match is **bina
 
 1. Normalize each Ingredient's `name` into an Ingredient Term.
 2. **Discard Ingredients whose Ingredient Term is empty.** An Ingredient named `to taste` or `chopped` contributes nothing, is not counted in the denominator, and can never be a Missing Ingredient.
-3. **Deduplicate by token set.** If two Ingredients on one Recipe normalize to the same Ingredient Term, they count once. `2 large onions` and `1 small onion` on the same Recipe are one Ingredient Term.
+3. **Deduplicate by token set.** If two Ingredients on one Recipe normalize to the same Ingredient Term, they count once. `2 large onions` and `3 chopped onions` on the same Recipe both normalize to `{onions}` and are one Ingredient Term.
+
+   The criterion is the token set and nothing else. `2 large onions` and `1 small onion` normalize to `{onions}` and `{onion}` — **different** token sets, so they are **two** Ingredient Terms and the denominator is 2. A Pantry Item of `onion` matches both (`onion`/`onions` is `0.625`, section 6.1), so this changes no MATCH verdict, but it does change Coverage, and the denominator decides the rank. Deduplication is never by similarity; if it were, it would depend on which Ingredient was compared first.
 
 The `measurement` field is never read. Quantity is ignored entirely: a Pantry Item asserts only that the user has *some* of a food, and comparing "I have flour" against "needs 6 cups" would need a unit system this product does not have.
 
