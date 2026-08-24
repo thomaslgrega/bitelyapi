@@ -75,6 +75,28 @@ func TestRecipeHandlerMatchRecipesWithAPantryThatNormalizesToNothing(t *testing.
 	}
 }
 
+// A Pantry Item that is nothing but measurements and descriptors contributes
+// no tokens, so it neither widens narrowing nor drags the whole corpus in
+// alongside the items that do name a food.
+func TestRecipeHandlerMatchRecipesDropsPantryItemsThatAreAllStopwords(t *testing.T) {
+	var gotTokens []string
+	h := NewRecipeHandler(fakeRecipeRepo{
+		getMatchCandidatesFunc: func(ctx context.Context, tokens []string, limit int) ([]models.MatchCandidate, error) {
+			gotTokens = tokens
+			return nil, nil
+		},
+	})
+
+	rec := matchRequest(t, h, `["onion", "to taste", "freshly chopped", "1 1/2 cups"]`)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected status %d, got %d", http.StatusOK, rec.Code)
+	}
+	if want := []string{"onion"}; !reflect.DeepEqual(gotTokens, want) {
+		t.Fatalf("narrowed on %v, want %v", gotTokens, want)
+	}
+}
+
 func TestRecipeHandlerMatchRecipesReturnsRepositoryError(t *testing.T) {
 	h := NewRecipeHandler(fakeRecipeRepo{
 		getMatchCandidatesFunc: func(ctx context.Context, tokens []string, limit int) ([]models.MatchCandidate, error) {

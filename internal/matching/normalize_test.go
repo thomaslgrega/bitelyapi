@@ -1,7 +1,6 @@
 package matching
 
 import (
-	"reflect"
 	"testing"
 )
 
@@ -31,11 +30,7 @@ func TestNormalize(t *testing.T) {
 
 	for _, test := range tests {
 		t.Run(test.raw, func(t *testing.T) {
-			got := Normalize(test.raw).Tokens()
-			if len(got) == 0 && len(test.tokens) == 0 {
-				return
-			}
-			if !reflect.DeepEqual(got, test.tokens) {
+			if got := Normalize(test.raw).Tokens(); !sameTokens(got, test.tokens) {
 				t.Fatalf("Normalize(%q) = %v, want %v", test.raw, got, test.tokens)
 			}
 		})
