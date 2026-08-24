@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"errors"
+	"strconv"
 
 	"github.com/thomaslgrega/bitelyapi/internal/models"
 )
@@ -236,4 +237,93 @@ func (r *RecipeRepository) UpdateRecipe(ctx context.Context, recipe models.Recip
 	}
 
 	return nil
+}
+
+// narrowingThreshold is how similar an Ingredient name has to be to a pantry
+// token to make a Recipe a candidate. It is deliberately looser than scoring:
+// narrowing costs recall when it is too tight, and the matching package
+// re-scores every candidate from scratch, so being generous here is free.
+const narrowingThreshold = 0.3
+
+// GetMatchCandidates narrows the corpus to Recipes with at least one
+// Ingredient whose name is trigram-similar to one of the pantry tokens, and
+// returns them with their Ingredient names attached. It applies no scoring and
+// no ordering — that is the matching package's job. The limit caps how many
+// Recipes come back, so a pantry of common foods cannot pull the whole corpus
+// into memory. Which Recipes survive that cap is arbitrary — nothing here
+// ranks them — but ordering the cap keeps it stable between identical
+// requests.
+//
+// Ingredients come back in the order they were stored. The table records no
+// authored position, so that is the closest thing to the order the Author
+// wrote them in.
+func (r *RecipeRepository) GetMatchCandidates(ctx context.Context, tokens []string, limit int) ([]models.MatchCandidate, error) {
+	// The word-similarity threshold is a session setting, so the query runs in
+	// a transaction that can SET LOCAL it rather than depend on the server
+	// default.
+	transaction, err := r.db.BeginTx(ctx, &sql.TxOptions{ReadOnly: true})
+	if err != nil {
+		return nil, err
+	}
+	defer transaction.Rollback()
+
+	// set_config with is_local true rather than SET LOCAL, because SET takes no
+	// query parameters. It takes the value as text, hence the formatting.
+	threshold := strconv.FormatFloat(narrowingThreshold, 'f', -1, 64)
+	if _, err := transaction.ExecContext(ctx, "SELECT set_config('pg_trgm.word_similarity_threshold', $1, true)", threshold); err != nil {
+		return nil, err
+	}
+
+	rows, err := transaction.QueryContext(ctx, `
+		WITH candidates AS (
+			SELECT DISTINCT i.recipe_id
+			FROM ingredients i
+			JOIN unnest($1::text[]) AS token ON token <% i.name_norm
+			ORDER BY i.recipe_id
+			LIMIT $2
+		)
+		SELECT r.id, r.name, r.category, r.thumbnail_url, r.calories, r.total_cook_time, i.name
+		FROM candidates c
+		JOIN recipes r ON r.id = c.recipe_id
+		JOIN ingredients i ON i.recipe_id = r.id
+		ORDER BY r.id, i.created_at, i.id
+	`, tokens, limit)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	candidates := make([]models.MatchCandidate, 0)
+	for rows.Next() {
+		var recipe models.RecipeSummary
+		var ingredientName string
+		if err := rows.Scan(
+			&recipe.ID,
+			&recipe.Name,
+			&recipe.Category,
+			&recipe.ThumbnailUrl,
+			&recipe.Calories,
+			&recipe.TotalCookTime,
+			&ingredientName,
+		); err != nil {
+			return nil, err
+		}
+
+		// The join returns one row per Ingredient, ordered by Recipe, so a new
+		// id starts a new candidate.
+		if len(candidates) == 0 || candidates[len(candidates)-1].Recipe.ID != recipe.ID {
+			candidates = append(candidates, models.MatchCandidate{Recipe: recipe})
+		}
+		last := &candidates[len(candidates)-1]
+		last.Ingredients = append(last.Ingredients, ingredientName)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+
+	if err := transaction.Commit(); err != nil {
+		return nil, err
+	}
+
+	return candidates, nil
 }

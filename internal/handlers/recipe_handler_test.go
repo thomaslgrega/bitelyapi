@@ -22,6 +22,7 @@ type fakeRecipeRepo struct {
 	createRecipeFunc         func(ctx context.Context, userID string, input models.CreateRecipeInput) (*models.Recipe, error)
 	deleteRecipeFunc         func(ctx context.Context, id string, userID string) error
 	updateRecipeFunc         func(ctx context.Context, recipe models.Recipe, userID string) error
+	getMatchCandidatesFunc   func(ctx context.Context, tokens []string, limit int) ([]models.MatchCandidate, error)
 }
 
 func (f fakeRecipeRepo) GetRecipeById(ctx context.Context, id string) (models.Recipe, error) {
@@ -46,6 +47,10 @@ func (f fakeRecipeRepo) DeleteRecipe(ctx context.Context, id string, userID stri
 
 func (f fakeRecipeRepo) UpdateRecipe(ctx context.Context, recipe models.Recipe, userID string) error {
 	return f.updateRecipeFunc(ctx, recipe, userID)
+}
+
+func (f fakeRecipeRepo) GetMatchCandidates(ctx context.Context, tokens []string, limit int) ([]models.MatchCandidate, error) {
+	return f.getMatchCandidatesFunc(ctx, tokens, limit)
 }
 
 func TestRecipeHandlerGetRecipeByID(t *testing.T) {

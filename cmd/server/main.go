@@ -43,6 +43,7 @@ func main() {
 	mux.Handle("PUT /recipes/{id}", authMW(http.HandlerFunc(recipesHandler.UpdateRecipe)))
 	mux.Handle("GET /me", authMW(http.HandlerFunc(authHandler.Me)))
 
+	mux.HandleFunc("POST /recipes/match", recipesHandler.MatchRecipes)
 	mux.HandleFunc("GET /recipes/{id}", recipesHandler.GetRecipeById)
 	mux.HandleFunc("GET /recipes", recipesHandler.GetRecipes)
 	mux.HandleFunc("POST /auth/apple", authHandler.SignInWithApple)
