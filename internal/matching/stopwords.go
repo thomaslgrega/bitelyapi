@@ -4,8 +4,8 @@ package matching
 // docs/ingredient-matching-algorithm.md section 2, which is the source of
 // truth. They are kept separate and named separately because they have
 // different provenance and will change for different reasons: the measurement
-// list tracks the MeasurementUnit enum in the iOS app, the descriptor list is
-// tuned against real ingredient lines.
+// list was transcribed from this product's existing measurement vocabulary,
+// the descriptor list is tuned against real ingredient lines.
 
 // MeasurementStopwords are the tokens of the measurement vocabulary, split
 // into single tokens because normalization has already tokenized by the time

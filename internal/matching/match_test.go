@@ -188,13 +188,33 @@ func TestRankDiscardsIngredientsThatNormalizeToEmpty(t *testing.T) {
 func TestRankDeduplicatesIngredientTerms(t *testing.T) {
 	pantry := []string{"onions"}
 	candidates := []Candidate{
-		candidate("onions", "Onions", "2 large onions", "1 small onions", "butter"),
+		candidate("onions", "Onions", "2 large onions", "3 chopped onions", "butter"),
 	}
 
 	matches := Rank(pantry, candidates)
 
 	if len(matches[0].Matched)+len(matches[0].Missing) != 2 {
 		t.Fatalf("expected 2 Ingredient Terms, got matched %v missing %v", matches[0].Matched, matches[0].Missing)
+	}
+}
+
+// Section 5: deduplication is by token set and nothing else, never by
+// similarity, so a singular and a plural of the same food are two Ingredient
+// Terms and count twice in the denominator even though one Pantry Item
+// matches both.
+func TestRankCountsSingularAndPluralAsDistinctIngredientTerms(t *testing.T) {
+	pantry := []string{"onion"}
+	candidates := []Candidate{
+		candidate("onions", "Onions", "2 large onions", "1 small onion"),
+	}
+
+	matches := Rank(pantry, candidates)
+
+	if len(matches) != 1 {
+		t.Fatalf("expected one match, got %d", len(matches))
+	}
+	if got := matches[0].Matched; len(got) != 2 {
+		t.Fatalf("matched %v, want both lines: {onions} and {onion} are different token sets, so they are two Ingredient Terms", got)
 	}
 }
 
