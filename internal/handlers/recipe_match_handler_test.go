@@ -37,8 +37,11 @@ func TestRecipeHandlerMatchRecipesRejectsAnEmptyPantry(t *testing.T) {
 	tests := map[string]string{
 		"invalid json": `{`,
 		"empty list":   `[]`,
-		"all blank":    `["", "   "]`,
-		"not a list":   `{"pantry": ["onion"]}`,
+		// Nothing but blanks carries no Pantry Item, so it is rejected like an
+		// empty list rather than answered with an empty one. That split is
+		// issue 5's, not the algorithm document's; ADR-0003 records why it won.
+		"all blank":  `["", "   "]`,
+		"not a list": `{"pantry": ["onion"]}`,
 	}
 
 	for name, body := range tests {
@@ -54,24 +57,36 @@ func TestRecipeHandlerMatchRecipesRejectsAnEmptyPantry(t *testing.T) {
 	}
 }
 
+// The other half of ADR-0003's split. A blank alongside a stopword-only string
+// does not drag the request back into the 400 above: the blank is discarded and
+// the stopword string is what the emptiness check sees.
 func TestRecipeHandlerMatchRecipesWithAPantryThatNormalizesToNothing(t *testing.T) {
-	h := NewRecipeHandler(fakeRecipeRepo{
-		getMatchCandidatesFunc: func(ctx context.Context, tokens []string, limit int) ([]models.MatchCandidate, error) {
-			t.Fatal("expected no repository call for a pantry with no Ingredient Terms")
-			return nil, nil
-		},
-	})
-
-	rec := matchRequest(t, h, `["to taste", "freshly chopped"]`)
-
-	if rec.Code != http.StatusOK {
-		t.Fatalf("expected status %d, got %d", http.StatusOK, rec.Code)
+	bodies := map[string]string{
+		"only stopword strings": `["to taste", "freshly chopped"]`,
+		"a blank beside one":    `["", "to taste"]`,
 	}
-	if matches := decodeMatches(t, rec); len(matches) != 0 {
-		t.Fatalf("expected an empty list, got %v", matches)
-	}
-	if body := rec.Body.String(); body != "[]\n" {
-		t.Fatalf("expected an empty JSON list, got %q", body)
+
+	for name, body := range bodies {
+		t.Run(name, func(t *testing.T) {
+			h := NewRecipeHandler(fakeRecipeRepo{
+				getMatchCandidatesFunc: func(ctx context.Context, tokens []string, limit int) ([]models.MatchCandidate, error) {
+					t.Fatal("expected no repository call for a pantry with no Ingredient Terms")
+					return nil, nil
+				},
+			})
+
+			rec := matchRequest(t, h, body)
+
+			if rec.Code != http.StatusOK {
+				t.Fatalf("expected status %d, got %d", http.StatusOK, rec.Code)
+			}
+			if matches := decodeMatches(t, rec); len(matches) != 0 {
+				t.Fatalf("expected an empty list, got %v", matches)
+			}
+			if body := rec.Body.String(); body != "[]\n" {
+				t.Fatalf("expected an empty JSON list, got %q", body)
+			}
+		})
 	}
 }
 

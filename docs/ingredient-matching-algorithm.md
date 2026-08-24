@@ -352,7 +352,8 @@ Assertions on Scenario C:
 
 | Input | Expected |
 | --- | --- |
-| Pantry Items all normalize to empty (`""`, `"   "`, `"to taste"`) | No Matches. The server rejects an empty submitted list with `400`; a list that survives decoding but normalizes to nothing yields `200` with an empty list. |
+| Every submitted string is blank (`""`, `"   "`), or the list itself is empty (`[]`) | `400`. A blank names no food, so such a request carries no Pantry Item at all and is malformed rather than a pantry that matches nothing. See ADR-0003. |
+| Pantry Items all normalize to empty without being blank (`"to taste"`, `"freshly chopped"`) | No Matches: `200` with an empty list. A blank sitting alongside such a Pantry Item is discarded and does not make the request a `400`. |
 | Pantry Items contain duplicates and blanks (`"Onion"`, `"onion"`, `""`, `" onions "`) | Deduplicated to `{onion}` and `{onions}` — two distinct Ingredient Terms, both of which match an `onion` Ingredient Term, contributing one matched Ingredient Term, not two. Coverage counts Ingredient Terms on the Recipe, never Pantry Items. |
 | Recipe with every Ingredient normalizing to empty | Zero Ingredient Terms, Coverage 0, not returned as a Match. Never a division by zero. |
 
