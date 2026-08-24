@@ -33,6 +33,9 @@ func decodeMatches(t *testing.T, rec *httptest.ResponseRecorder) []models.Recipe
 	return matches
 }
 
+// Scenario D of docs/ingredient-matching-algorithm.md section 6.3 opens with
+// this row. The rest of that scenario is scored rather than rejected, so it is
+// asserted in the matching package.
 func TestRecipeHandlerMatchRecipesRejectsAnEmptyPantry(t *testing.T) {
 	tests := map[string]string{
 		"invalid json": `{`,
@@ -248,6 +251,47 @@ func TestRecipeHandlerMatchRecipesCapsTheResponse(t *testing.T) {
 	}
 	if matches[0].MissingIngredients == nil {
 		t.Fatal("expected a fully covered Recipe to report an empty missing list, not null")
+	}
+
+	// 120 Recipes of one Ingredient each tie on Coverage and on Missing
+	// Ingredient count, so the Recipe name settles which 50 survive the cap.
+	// Without a tie-break that reaches every one of them, two identical
+	// requests return two different halves of the corpus.
+	if last := matches[len(matches)-1].ID; last != "recipe-049" {
+		t.Fatalf("cap kept up to %q, want the first fifty by Recipe name", last)
+	}
+}
+
+// The same pantry over the same corpus answers with the same list, however the
+// candidates happen to come back from the database. Narrowing does not order
+// them by anything the ranking cares about, so this is the property that keeps
+// a client's merge of the server's list with its own coherent.
+func TestRecipeHandlerMatchRecipesIsDeterministicAcrossRequests(t *testing.T) {
+	corpus := []models.MatchCandidate{
+		{Recipe: models.RecipeSummary{ID: "pancakes", Name: "Pancakes"}, Ingredients: []string{"flour", "eggs", "milk", "butter", "sugar", "salt"}},
+		{Recipe: models.RecipeSummary{ID: "crepes", Name: "Crepes"}, Ingredients: []string{"eggs", "flour", "milk", "butter"}},
+		{Recipe: models.RecipeSummary{ID: "omelette-b", Name: "Omelette"}, Ingredients: []string{"eggs", "butter"}},
+		{Recipe: models.RecipeSummary{ID: "omelette-a", Name: "Omelette"}, Ingredients: []string{"eggs", "butter"}},
+		{Recipe: models.RecipeSummary{ID: "butter-cookies", Name: "Butter Cookies"}, Ingredients: []string{"butter", "sugar", "flour", "egg"}},
+	}
+
+	call := 0
+	h := NewRecipeHandler(fakeRecipeRepo{
+		getMatchCandidatesFunc: func(ctx context.Context, tokens []string, limit int) ([]models.MatchCandidate, error) {
+			// A different arrival order every call, which is all narrowing
+			// promises.
+			rotated := append([]models.MatchCandidate{}, corpus[call%len(corpus):]...)
+			rotated = append(rotated, corpus[:call%len(corpus)]...)
+			call++
+			return rotated, nil
+		},
+	})
+
+	first := matchRequest(t, h, `["eggs", "butter", "flour", "sugar", "milk"]`).Body.String()
+	for run := 1; run < len(corpus); run++ {
+		if got := matchRequest(t, h, `["eggs", "butter", "flour", "sugar", "milk"]`).Body.String(); got != first {
+			t.Fatalf("request %d answered\n%s\nwant\n%s", run, got, first)
+		}
 	}
 }
 

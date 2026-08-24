@@ -24,8 +24,8 @@ type Match struct {
 }
 
 // Coverage is the fraction of the Recipe's Ingredient Terms the pantry holds.
-// Ranking never uses this value — see the integer comparison in Rank — but a
-// client renders it.
+// Ranking never uses this value — it compares the two counts as integers, in
+// rankKey.precedes — but a client renders it.
 func (m Match) Coverage() float64 {
 	total := len(m.Matched) + len(m.Missing)
 	if total == 0 {
@@ -43,7 +43,7 @@ func Rank(pantryItems []string, candidates []Candidate) []Match {
 
 	type ranked struct {
 		match Match
-		name  string
+		key   rankKey
 	}
 
 	results := make([]ranked, 0, len(candidates))
@@ -52,29 +52,11 @@ func Rank(pantryItems []string, candidates []Candidate) []Match {
 		if len(match.Matched) == 0 {
 			continue
 		}
-		results = append(results, ranked{match: match, name: candidate.Name})
+		results = append(results, ranked{match: match, key: newRankKey(match, candidate.Name)})
 	}
 
 	sort.Slice(results, func(i, j int) bool {
-		left, right := results[i], results[j]
-
-		// Cross-multiply rather than divide: Coverage is an integer ratio, and
-		// the Swift implementation must order identically.
-		leftCoverage := len(left.match.Matched) * (len(right.match.Matched) + len(right.match.Missing))
-		rightCoverage := len(right.match.Matched) * (len(left.match.Matched) + len(left.match.Missing))
-		if leftCoverage != rightCoverage {
-			return leftCoverage > rightCoverage
-		}
-
-		if len(left.match.Missing) != len(right.match.Missing) {
-			return len(left.match.Missing) < len(right.match.Missing)
-		}
-
-		if left.name != right.name {
-			return left.name < right.name
-		}
-
-		return left.match.RecipeID < right.match.RecipeID
+		return results[i].key.precedes(results[j].key)
 	})
 
 	matches := make([]Match, 0, len(results))
@@ -82,6 +64,62 @@ func Rank(pantryItems []string, candidates []Candidate) []Match {
 		matches = append(matches, result.match)
 	}
 	return matches
+}
+
+// A rankKey is everything ordering compares a Match on, and nothing else.
+// Section 5 of the algorithm document specifies the comparison; it lives in
+// its own type because it is the part of this package the Swift
+// implementation has to mirror exactly, and because a comparison spread
+// through a sort callback is one nobody can port line by line.
+type rankKey struct {
+	matched  int
+	missing  int
+	name     string
+	recipeID string
+}
+
+func newRankKey(match Match, name string) rankKey {
+	return rankKey{
+		matched:  len(match.Matched),
+		missing:  len(match.Missing),
+		name:     name,
+		recipeID: match.RecipeID,
+	}
+}
+
+// total is the size of the Recipe's Ingredient Term set: the denominator of
+// Coverage, and every Term is either matched or missing.
+func (k rankKey) total() int {
+	return k.matched + k.missing
+}
+
+// precedes reports whether this Match ranks ahead of another. The four keys of
+// section 5, in order, and the last of them is the Recipe id, so the ordering
+// is total: no two Matches are ever left genuinely tied, and the same corpus
+// comes back in the same order every time.
+func (k rankKey) precedes(other rankKey) bool {
+	// Coverage descending, cross-multiplied rather than divided. Coverage is an
+	// integer ratio, and two languages dividing the same two integers can land
+	// on different last bits; multiplying keeps the comparison exact in both.
+	coverage, otherCoverage := k.matched*other.total(), other.matched*k.total()
+	if coverage != otherCoverage {
+		return coverage > otherCoverage
+	}
+
+	if k.missing != other.missing {
+		return k.missing < other.missing
+	}
+
+	// Recipe name, then Recipe id, both by UTF-8 byte order. Go's `<` on string
+	// is exactly that. Swift's is not — it compares by Unicode canonical
+	// equivalence, which calls two spellings of the same accent equal — so the
+	// port compares `Array(a.utf8)` instead. Names differing only in accent
+	// composition are where the two disagree.
+	if k.name != other.name {
+		return k.name < other.name
+	}
+
+	return k.recipeID < other.recipeID
 }
 
 // PantryTokens returns the distinct tokens a set of Pantry Items normalizes
