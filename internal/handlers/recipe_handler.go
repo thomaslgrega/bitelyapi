@@ -16,6 +16,7 @@ import (
 type recipeRepository interface {
 	GetRecipeById(ctx context.Context, id string) (models.Recipe, error)
 	GetRecipesByCategory(ctx context.Context, category string) ([]models.RecipeSummary, error)
+	SearchRecipesByName(ctx context.Context, query string, category string, limit int) ([]models.RecipeSummary, error)
 	GetRecipesByUserID(ctx context.Context, userID string) ([]models.Recipe, error)
 	CreateRecipe(ctx context.Context, userID string, input models.CreateRecipeInput) (*models.Recipe, error)
 	DeleteRecipe(ctx context.Context, id string, userID string) error
@@ -54,14 +55,34 @@ func (h *RecipeHandler) GetRecipeById(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
+// GetRecipes browses the corpus, either by category or by a Name Query. A
+// Name Query matches the Recipe's name only — never its Ingredients, which is
+// what pantry matching is for — and matches it fuzzily, so a misremembered
+// spelling still reaches the Recipe. ADR-0004 records both choices.
+//
+// The two narrowings compose: a Name Query with a category searches within
+// that category.
 func (h *RecipeHandler) GetRecipes(w http.ResponseWriter, r *http.Request) {
 	category := r.URL.Query().Get("category")
-	if category == "" {
-		http.Error(w, "category required", http.StatusBadRequest)
+
+	// A query of nothing but whitespace names no Recipe, so it is dropped here
+	// and the request stands or falls on its category. Left in, it would reach
+	// the database only to come back empty, and a request carrying a category
+	// as well would answer nothing instead of that category.
+	query := strings.TrimSpace(r.URL.Query().Get("q"))
+
+	if query == "" && category == "" {
+		http.Error(w, "category or q required", http.StatusBadRequest)
 		return
 	}
 
-	recipes, err := h.repo.GetRecipesByCategory(r.Context(), category)
+	var recipes []models.RecipeSummary
+	var err error
+	if query != "" {
+		recipes, err = h.repo.SearchRecipesByName(r.Context(), query, category, maxNameQueryResults)
+	} else {
+		recipes, err = h.repo.GetRecipesByCategory(r.Context(), category)
+	}
 	if err != nil {
 		http.Error(w, "failed to fetch recipes", http.StatusInternalServerError)
 		return
@@ -189,6 +210,12 @@ const (
 	// maxMatches caps the response. There is no pagination: past fifty
 	// Recipes the Coverage is low enough that nobody scrolls.
 	maxMatches = 50
+
+	// maxNameQueryResults caps a Name Query's answer. Like maxMatches there is
+	// no pagination: a Name Query is how someone reaches a Recipe they already
+	// have in mind, and past fifty the trigram tail is noise nobody scrolls.
+	// These are results, not Matches — a Match answers a pantry.
+	maxNameQueryResults = 50
 
 	// candidateCeiling caps how much of the corpus narrowing may pull into
 	// memory, so a pantry of common foods cannot drag the whole table in.

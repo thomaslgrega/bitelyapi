@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"errors"
 	"strconv"
+	"strings"
 
 	"github.com/thomaslgrega/bitelyapi/internal/models"
 )
@@ -114,6 +115,85 @@ func (r *RecipeRepository) GetRecipesByCategory(ctx context.Context, category st
 			return nil, err
 		}
 		recipes = append(recipes, recipe)
+	}
+
+	return recipes, nil
+}
+
+// nameQueryThreshold is how similar a Name Query has to be to some run of
+// words in a Recipe's name to reach it. It is far tighter than
+// narrowingThreshold, and for the opposite reason: nothing re-scores these
+// rows afterwards, so whatever clears the threshold is the answer the user
+// reads. 0.3 is where names that merely share a stem start arriving — it
+// answers "banana" with Chana Masala and "chicken" with Chocolate Chip
+// Cookies. 0.5 drops those and still clears every misspelling worth serving:
+// shakshouka against shakshuka scores 0.615, focacia against focaccia 0.700,
+// ratatouile against ratatouille 0.818.
+const nameQueryThreshold = 0.5
+
+// SearchRecipesByName answers a Name Query with the Shared Recipes whose name
+// it reaches, closest first. It matches on the name alone: searching
+// Ingredients as well is what pantry matching already does, and folding it in
+// here would answer "chicken" with Recipes that are not named for it
+// (ADR-0004).
+//
+// Trigram word similarity carries both halves of what a search box gets.
+// Misspellings are the obvious half. Half-typed queries are the less obvious
+// one: word_similarity scores its query against the best-matching run of words
+// in the name rather than the whole name, so "shak" reaches "Green Shakshuka"
+// at 0.8 and needs no separate prefix or substring match beside it. What that
+// gives up is matching inside a word — "toui" does not reach "Ratatouille" —
+// which is the boundary a word-anchored search should have anyway.
+//
+// An empty category means every category. The limit caps the answer.
+func (r *RecipeRepository) SearchRecipesByName(ctx context.Context, query string, category string, limit int) ([]models.RecipeSummary, error) {
+	// The word-similarity threshold is a session setting, so the query runs in
+	// a transaction that can SET LOCAL it rather than depend on the server
+	// default.
+	transaction, err := r.db.BeginTx(ctx, &sql.TxOptions{ReadOnly: true})
+	if err != nil {
+		return nil, err
+	}
+	defer transaction.Rollback()
+
+	// set_config with is_local true rather than SET LOCAL, because SET takes no
+	// query parameters. It takes the value as text, hence the formatting.
+	threshold := strconv.FormatFloat(nameQueryThreshold, 'f', -1, 64)
+	if _, err := transaction.ExecContext(ctx, "SELECT set_config('pg_trgm.word_similarity_threshold', $1, true)", threshold); err != nil {
+		return nil, err
+	}
+
+	// Normalized here the same way name_norm is generated, rather than leaning
+	// on pg_trgm to fold case itself or on the caller to have trimmed. Untrimmed
+	// input would otherwise score against the trigrams its own padding adds.
+	normalized := strings.ToLower(strings.TrimSpace(query))
+	rows, err := transaction.QueryContext(ctx, `
+		SELECT id, name, category, thumbnail_url, calories, total_cook_time
+		FROM recipes
+		WHERE ($2 = '' OR category = $2)
+		  AND $1 <% name_norm
+		ORDER BY word_similarity($1, name_norm) DESC, name, id
+		LIMIT $3
+	`, normalized, category, limit)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	recipes := make([]models.RecipeSummary, 0)
+	for rows.Next() {
+		var recipe models.RecipeSummary
+		if err := rows.Scan(&recipe.ID, &recipe.Name, &recipe.Category, &recipe.ThumbnailUrl, &recipe.Calories, &recipe.TotalCookTime); err != nil {
+			return nil, err
+		}
+		recipes = append(recipes, recipe)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+
+	if err := transaction.Commit(); err != nil {
+		return nil, err
 	}
 
 	return recipes, nil
