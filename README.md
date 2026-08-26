@@ -25,6 +25,7 @@ Health check: `GET /health`
 
 ### Public
 - `GET /recipes?category=Dessert` — list recipe summaries by category
+- `GET /recipes?name=shakshuka` — list recipe summaries whose **name** matches the query, closest first. The match is fuzzy, so a misspelling still finds the recipe; it never looks at ingredients (that is `POST /recipes/match`). Composable with `category` to search within one. Up to 50 results. See ADR-0004.
 - `GET /recipes/{id}` — get full recipe details (includes ingredients)
 - `POST /recipes/match` — match a pantry against the recipe corpus. Body is a JSON list of raw ingredient strings, e.g. `["chicken", "rice", "onion"]`; the response is up to 50 recipe cards ordered by coverage, each with its matched ingredients, missing ingredients, and coverage. See `docs/ingredient-matching-algorithm.md`.
 

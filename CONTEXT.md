@@ -56,3 +56,7 @@ _Avoid_: Score, match percentage
 **Missing Ingredient**:
 An Ingredient Term a Recipe calls for that the user has no matching Pantry Item for.
 _Avoid_: Gap, shortfall
+
+**Name Query**:
+What a user types to reach a Shared Recipe they already have in mind. Compared against Recipe names only, never Ingredients, and compared loosely enough to survive a misspelling. Distinct from a Match, which the user does not name.
+_Avoid_: Search term, keyword, title search
