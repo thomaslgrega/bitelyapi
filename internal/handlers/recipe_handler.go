@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"errors"
 	"net/http"
+	"strconv"
 	"strings"
 
 	"github.com/thomaslgrega/bitelyapi/internal/matching"
@@ -16,6 +17,7 @@ import (
 type recipeRepository interface {
 	GetRecipeById(ctx context.Context, id string) (models.Recipe, error)
 	GetRecipesByCategory(ctx context.Context, category string) ([]models.RecipeSummary, error)
+	GetRecipeFeed(ctx context.Context, limit int) ([]models.RecipeSummary, error)
 	SearchRecipesByName(ctx context.Context, query string, category string, limit int) ([]models.RecipeSummary, error)
 	GetRecipesByUserID(ctx context.Context, userID string) ([]models.Recipe, error)
 	CreateRecipe(ctx context.Context, userID string, input models.CreateRecipeInput) (*models.Recipe, error)
@@ -55,33 +57,44 @@ func (h *RecipeHandler) GetRecipeById(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-// GetRecipes browses the corpus, either by category or by a Name Query. A
-// Name Query matches the Recipe's name only — never its Ingredients, which is
-// what pantry matching is for — and matches it fuzzily, so a misremembered
-// spelling still reaches the Recipe. ADR-0004 records both choices.
+// GetRecipes browses the corpus three ways. A Name Query matches the Recipe's
+// name only — never its Ingredients, which is what pantry matching is for —
+// and matches it fuzzily, so a misremembered spelling still reaches the Recipe
+// (ADR-0004). A category narrows to one. Neither given, the answer is the Feed
+// (ADR-0005).
 //
-// The two narrowings compose: a Name Query with a category searches within
-// that category.
+// A Name Query and a category compose: together they search within that
+// category.
 func (h *RecipeHandler) GetRecipes(w http.ResponseWriter, r *http.Request) {
 	category := r.URL.Query().Get("category")
 
 	// A query of nothing but whitespace names no Recipe, so it is dropped here
-	// and the request stands or falls on its category. Left in, it would reach
-	// the database only to come back empty, and a request carrying a category
-	// as well would answer nothing instead of that category.
+	// and the request browses on whatever is left. Left in, it would reach the
+	// database only to come back empty, and a request carrying a category as
+	// well would answer nothing instead of that category.
 	query := strings.TrimSpace(r.URL.Query().Get("name"))
 
-	if query == "" && category == "" {
-		http.Error(w, "category or name required", http.StatusBadRequest)
+	limit, err := requestedLimit(r)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}
 
 	var recipes []models.RecipeSummary
-	var err error
-	if query != "" {
-		recipes, err = h.repo.SearchRecipesByName(r.Context(), query, category, maxNameQueryResults)
-	} else {
+	switch {
+	case query != "":
+		recipes, err = h.repo.SearchRecipesByName(r.Context(), query, category, cappedAt(limit, maxNameQueryResults))
+	case category != "":
+		// A category listing is the one browse that answers everything it
+		// finds, so it has no cap for a limit to lower. Honouring one here
+		// would make the same parameter mean something different per branch.
+		if limit != noLimit {
+			http.Error(w, "limit does not apply when listing a category", http.StatusBadRequest)
+			return
+		}
 		recipes, err = h.repo.GetRecipesByCategory(r.Context(), category)
+	default:
+		recipes, err = h.repo.GetRecipeFeed(r.Context(), cappedAt(limit, maxFeedResults))
 	}
 	if err != nil {
 		http.Error(w, "failed to fetch recipes", http.StatusInternalServerError)
@@ -220,7 +233,41 @@ const (
 	// candidateCeiling caps how much of the corpus narrowing may pull into
 	// memory, so a pantry of common foods cannot drag the whole table in.
 	candidateCeiling = 500
+
+	// maxFeedResults caps the Feed at the same fifty the other browse
+	// endpoints stop at, for the reason ADR-0005 records.
+	maxFeedResults = 50
+
+	// noLimit is what a request that asks for no cap of its own reads as.
+	noLimit = 0
 )
+
+// requestedLimit reads the cap a request asks for, or noLimit when it names
+// none. Zero, a fraction and an empty limit are client bugs worth reporting
+// rather than quietly rounding into a page size nobody asked for.
+func requestedLimit(r *http.Request) (int, error) {
+	if !r.URL.Query().Has("limit") {
+		return noLimit, nil
+	}
+
+	limit, err := strconv.Atoi(r.URL.Query().Get("limit"))
+	if err != nil || limit < 1 {
+		return noLimit, errors.New("limit must be a positive whole number")
+	}
+
+	return limit, nil
+}
+
+// cappedAt lowers a browse's cap to what the request asked for. A limit past
+// the cap asks for more than there is rather than for something forbidden, so
+// it clamps instead of failing.
+func cappedAt(limit int, ceiling int) int {
+	if limit == noLimit {
+		return ceiling
+	}
+
+	return min(limit, ceiling)
+}
 
 // MatchRecipes answers a list of raw, un-normalized Pantry Items with the
 // Recipes the user could cook, best fit first. Postgres narrows the corpus;

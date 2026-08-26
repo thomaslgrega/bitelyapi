@@ -97,17 +97,11 @@ func (r *RecipeRepository) GetRecipeById(ctx context.Context, id string) (models
 	return recipe, nil
 }
 
-func (r *RecipeRepository) GetRecipesByCategory(ctx context.Context, category string) ([]models.RecipeSummary, error) {
-	rows, err := r.db.QueryContext(
-		ctx,
-		"SELECT id, name, category, thumbnail_url, calories, total_cook_time FROM recipes WHERE category = $1",
-		category,
-	)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
+// recipeSummaryColumns is the RecipeSummary projection every browse shares,
+// in the order scanRecipeSummaries reads them.
+const recipeSummaryColumns = "id, name, category, thumbnail_url, calories, total_cook_time"
 
+func scanRecipeSummaries(rows *sql.Rows) ([]models.RecipeSummary, error) {
 	recipes := make([]models.RecipeSummary, 0)
 	for rows.Next() {
 		var recipe models.RecipeSummary
@@ -116,8 +110,42 @@ func (r *RecipeRepository) GetRecipesByCategory(ctx context.Context, category st
 		}
 		recipes = append(recipes, recipe)
 	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
 
 	return recipes, nil
+}
+
+func (r *RecipeRepository) GetRecipesByCategory(ctx context.Context, category string) ([]models.RecipeSummary, error) {
+	rows, err := r.db.QueryContext(
+		ctx,
+		"SELECT "+recipeSummaryColumns+" FROM recipes WHERE category = $1",
+		category,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	return scanRecipeSummaries(rows)
+}
+
+// GetRecipeFeed answers the Feed with the Shared Recipes shared most
+// recently, newest first, capped at the limit (ADR-0005).
+func (r *RecipeRepository) GetRecipeFeed(ctx context.Context, limit int) ([]models.RecipeSummary, error) {
+	rows, err := r.db.QueryContext(ctx, `
+		SELECT `+recipeSummaryColumns+`
+		FROM recipes
+		ORDER BY created_at DESC NULLS LAST, id DESC
+		LIMIT $1
+	`, limit)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	return scanRecipeSummaries(rows)
 }
 
 // nameQueryThreshold is how similar a Name Query has to be to some run of
@@ -168,7 +196,7 @@ func (r *RecipeRepository) SearchRecipesByName(ctx context.Context, query string
 	// input would otherwise score against the trigrams its own padding adds.
 	normalized := strings.ToLower(strings.TrimSpace(query))
 	rows, err := transaction.QueryContext(ctx, `
-		SELECT id, name, category, thumbnail_url, calories, total_cook_time
+		SELECT `+recipeSummaryColumns+`
 		FROM recipes
 		WHERE ($2 = '' OR category = $2)
 		  AND $1 <% name_norm
@@ -180,15 +208,8 @@ func (r *RecipeRepository) SearchRecipesByName(ctx context.Context, query string
 	}
 	defer rows.Close()
 
-	recipes := make([]models.RecipeSummary, 0)
-	for rows.Next() {
-		var recipe models.RecipeSummary
-		if err := rows.Scan(&recipe.ID, &recipe.Name, &recipe.Category, &recipe.ThumbnailUrl, &recipe.Calories, &recipe.TotalCookTime); err != nil {
-			return nil, err
-		}
-		recipes = append(recipes, recipe)
-	}
-	if err := rows.Err(); err != nil {
+	recipes, err := scanRecipeSummaries(rows)
+	if err != nil {
 		return nil, err
 	}
 
