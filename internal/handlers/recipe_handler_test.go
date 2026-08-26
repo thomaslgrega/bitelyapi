@@ -144,7 +144,7 @@ func TestRecipeHandlerGetRecipes(t *testing.T) {
 
 	t.Run("treats a blank Name Query as no query at all", func(t *testing.T) {
 		h := NewRecipeHandler(fakeRecipeRepo{})
-		req := httptest.NewRequest(http.MethodGet, "/recipes?q=%20%20", nil)
+		req := httptest.NewRequest(http.MethodGet, "/recipes?name=%20%20", nil)
 		rec := httptest.NewRecorder()
 
 		h.GetRecipes(rec, req)
@@ -169,7 +169,7 @@ func TestRecipeHandlerGetRecipes(t *testing.T) {
 				return []models.RecipeSummary{{ID: "recipe-1", Name: "Green Shakshuka", Category: "breakfast"}}, nil
 			},
 		})
-		req := httptest.NewRequest(http.MethodGet, "/recipes?q=%20shakshuka%20", nil)
+		req := httptest.NewRequest(http.MethodGet, "/recipes?name=%20shakshuka%20", nil)
 		rec := httptest.NewRecorder()
 
 		h.GetRecipes(rec, req)
@@ -195,7 +195,7 @@ func TestRecipeHandlerGetRecipes(t *testing.T) {
 				return []models.RecipeSummary{}, nil
 			},
 		})
-		req := httptest.NewRequest(http.MethodGet, "/recipes?q=shakshuka&category=breakfast", nil)
+		req := httptest.NewRequest(http.MethodGet, "/recipes?name=shakshuka&category=breakfast", nil)
 		rec := httptest.NewRecorder()
 
 		h.GetRecipes(rec, req)
@@ -214,7 +214,7 @@ func TestRecipeHandlerGetRecipes(t *testing.T) {
 				return nil, errors.New("db down")
 			},
 		})
-		req := httptest.NewRequest(http.MethodGet, "/recipes?q=shakshuka", nil)
+		req := httptest.NewRequest(http.MethodGet, "/recipes?name=shakshuka", nil)
 		rec := httptest.NewRecorder()
 
 		h.GetRecipes(rec, req)

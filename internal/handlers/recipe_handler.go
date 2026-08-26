@@ -69,10 +69,10 @@ func (h *RecipeHandler) GetRecipes(w http.ResponseWriter, r *http.Request) {
 	// and the request stands or falls on its category. Left in, it would reach
 	// the database only to come back empty, and a request carrying a category
 	// as well would answer nothing instead of that category.
-	query := strings.TrimSpace(r.URL.Query().Get("q"))
+	query := strings.TrimSpace(r.URL.Query().Get("name"))
 
 	if query == "" && category == "" {
-		http.Error(w, "category or q required", http.StatusBadRequest)
+		http.Error(w, "category or name required", http.StatusBadRequest)
 		return
 	}
 
