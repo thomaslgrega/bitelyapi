@@ -57,6 +57,10 @@ _Avoid_: Score, match percentage
 An Ingredient Term a Recipe calls for that the user has no matching Pantry Item for.
 _Avoid_: Gap, shortfall
 
+**Feed**:
+The bounded selection of Shared Recipes offered to a user who has named nothing to narrow by — no category, no Name Query, no Pantry Items. Ordered by recency of sharing, because that is the only signal the corpus measures.
+_Avoid_: Discover, home feed, today's picks, trending
+
 **Name Query**:
 What a user types to reach a Shared Recipe they already have in mind. Compared against Recipe names only, never Ingredients, and compared loosely enough to survive a misspelling. Distinct from a Match, which the user does not name.
 _Avoid_: Search term, keyword, title search

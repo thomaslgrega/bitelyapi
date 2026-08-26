@@ -24,6 +24,7 @@ type fakeRecipeRepo struct {
 	updateRecipeFunc         func(ctx context.Context, recipe models.Recipe, userID string) error
 	getMatchCandidatesFunc   func(ctx context.Context, tokens []string, limit int) ([]models.MatchCandidate, error)
 	searchRecipesByNameFunc  func(ctx context.Context, query string, category string, limit int) ([]models.RecipeSummary, error)
+	getRecipeFeedFunc        func(ctx context.Context, limit int) ([]models.RecipeSummary, error)
 }
 
 func (f fakeRecipeRepo) GetRecipeById(ctx context.Context, id string) (models.Recipe, error) {
@@ -52,6 +53,10 @@ func (f fakeRecipeRepo) UpdateRecipe(ctx context.Context, recipe models.Recipe, 
 
 func (f fakeRecipeRepo) SearchRecipesByName(ctx context.Context, query string, category string, limit int) ([]models.RecipeSummary, error) {
 	return f.searchRecipesByNameFunc(ctx, query, category, limit)
+}
+
+func (f fakeRecipeRepo) GetRecipeFeed(ctx context.Context, limit int) ([]models.RecipeSummary, error) {
+	return f.getRecipeFeedFunc(ctx, limit)
 }
 
 func (f fakeRecipeRepo) GetMatchCandidates(ctx context.Context, tokens []string, limit int) ([]models.MatchCandidate, error) {
@@ -114,9 +119,127 @@ func TestRecipeHandlerGetRecipeByID(t *testing.T) {
 }
 
 func TestRecipeHandlerGetRecipes(t *testing.T) {
-	t.Run("requires a category or a Name Query", func(t *testing.T) {
-		h := NewRecipeHandler(fakeRecipeRepo{})
+	t.Run("answers neither a category nor a Name Query with the Feed", func(t *testing.T) {
+		h := NewRecipeHandler(fakeRecipeRepo{
+			getRecipeFeedFunc: func(ctx context.Context, limit int) ([]models.RecipeSummary, error) {
+				if limit != maxFeedResults {
+					t.Fatalf("expected limit %d, got %d", maxFeedResults, limit)
+				}
+				return []models.RecipeSummary{{ID: "recipe-1", Name: "Green Shakshuka", Category: "breakfast"}}, nil
+			},
+		})
 		req := httptest.NewRequest(http.MethodGet, "/recipes", nil)
+		rec := httptest.NewRecorder()
+
+		h.GetRecipes(rec, req)
+
+		if rec.Code != http.StatusOK {
+			t.Fatalf("expected status %d, got %d", http.StatusOK, rec.Code)
+		}
+		var recipes []models.RecipeSummary
+		if err := json.Unmarshal(rec.Body.Bytes(), &recipes); err != nil {
+			t.Fatalf("failed to decode recipes: %v", err)
+		}
+		if len(recipes) != 1 || recipes[0].Name != "Green Shakshuka" {
+			t.Fatalf("unexpected recipes: %#v", recipes)
+		}
+	})
+
+	t.Run("answers a blank Name Query with the Feed", func(t *testing.T) {
+		called := false
+		h := NewRecipeHandler(fakeRecipeRepo{
+			getRecipeFeedFunc: func(ctx context.Context, limit int) ([]models.RecipeSummary, error) {
+				called = true
+				return []models.RecipeSummary{}, nil
+			},
+		})
+		req := httptest.NewRequest(http.MethodGet, "/recipes?name=%20%20", nil)
+		rec := httptest.NewRecorder()
+
+		h.GetRecipes(rec, req)
+
+		if rec.Code != http.StatusOK {
+			t.Fatalf("expected status %d, got %d", http.StatusOK, rec.Code)
+		}
+		if !called {
+			t.Fatal("expected a blank Name Query to fall through to the Feed")
+		}
+	})
+
+	t.Run("lets a limit shorten the Feed", func(t *testing.T) {
+		h := NewRecipeHandler(fakeRecipeRepo{
+			getRecipeFeedFunc: func(ctx context.Context, limit int) ([]models.RecipeSummary, error) {
+				if limit != 5 {
+					t.Fatalf("expected limit 5, got %d", limit)
+				}
+				return []models.RecipeSummary{}, nil
+			},
+		})
+		req := httptest.NewRequest(http.MethodGet, "/recipes?limit=5", nil)
+		rec := httptest.NewRecorder()
+
+		h.GetRecipes(rec, req)
+
+		if rec.Code != http.StatusOK {
+			t.Fatalf("expected status %d, got %d", http.StatusOK, rec.Code)
+		}
+	})
+
+	t.Run("clamps a limit past the cap", func(t *testing.T) {
+		h := NewRecipeHandler(fakeRecipeRepo{
+			getRecipeFeedFunc: func(ctx context.Context, limit int) ([]models.RecipeSummary, error) {
+				if limit != maxFeedResults {
+					t.Fatalf("expected limit %d, got %d", maxFeedResults, limit)
+				}
+				return []models.RecipeSummary{}, nil
+			},
+		})
+		req := httptest.NewRequest(http.MethodGet, "/recipes?limit=500", nil)
+		rec := httptest.NewRecorder()
+
+		h.GetRecipes(rec, req)
+
+		if rec.Code != http.StatusOK {
+			t.Fatalf("expected status %d, got %d", http.StatusOK, rec.Code)
+		}
+	})
+
+	t.Run("rejects a limit that is not a positive whole number", func(t *testing.T) {
+		for _, limit := range []string{"abc", "0", "-3", "2.5", ""} {
+			h := NewRecipeHandler(fakeRecipeRepo{})
+			req := httptest.NewRequest(http.MethodGet, "/recipes?limit="+limit, nil)
+			rec := httptest.NewRecorder()
+
+			h.GetRecipes(rec, req)
+
+			if rec.Code != http.StatusBadRequest {
+				t.Fatalf("limit %q: expected status %d, got %d", limit, http.StatusBadRequest, rec.Code)
+			}
+		}
+	})
+
+	t.Run("lets a limit shorten a Name Query too", func(t *testing.T) {
+		h := NewRecipeHandler(fakeRecipeRepo{
+			searchRecipesByNameFunc: func(ctx context.Context, query string, category string, limit int) ([]models.RecipeSummary, error) {
+				if limit != 5 {
+					t.Fatalf("expected limit 5, got %d", limit)
+				}
+				return []models.RecipeSummary{}, nil
+			},
+		})
+		req := httptest.NewRequest(http.MethodGet, "/recipes?name=shakshuka&limit=5", nil)
+		rec := httptest.NewRecorder()
+
+		h.GetRecipes(rec, req)
+
+		if rec.Code != http.StatusOK {
+			t.Fatalf("expected status %d, got %d", http.StatusOK, rec.Code)
+		}
+	})
+
+	t.Run("refuses a limit on a category listing, which has no cap to lower", func(t *testing.T) {
+		h := NewRecipeHandler(fakeRecipeRepo{})
+		req := httptest.NewRequest(http.MethodGet, "/recipes?category=dinner&limit=5", nil)
 		rec := httptest.NewRecorder()
 
 		h.GetRecipes(rec, req)
@@ -126,7 +249,49 @@ func TestRecipeHandlerGetRecipes(t *testing.T) {
 		}
 	})
 
-	t.Run("returns repository error", func(t *testing.T) {
+	t.Run("returns a Feed repository error", func(t *testing.T) {
+		h := NewRecipeHandler(fakeRecipeRepo{
+			getRecipeFeedFunc: func(ctx context.Context, limit int) ([]models.RecipeSummary, error) {
+				return nil, errors.New("db down")
+			},
+		})
+		req := httptest.NewRequest(http.MethodGet, "/recipes", nil)
+		rec := httptest.NewRecorder()
+
+		h.GetRecipes(rec, req)
+
+		if rec.Code != http.StatusInternalServerError {
+			t.Fatalf("expected status %d, got %d", http.StatusInternalServerError, rec.Code)
+		}
+	})
+
+	t.Run("lists a category rather than the Feed", func(t *testing.T) {
+		h := NewRecipeHandler(fakeRecipeRepo{
+			getRecipesByCategoryFunc: func(ctx context.Context, category string) ([]models.RecipeSummary, error) {
+				if category != "dinner" {
+					t.Fatalf("expected category dinner, got %q", category)
+				}
+				return []models.RecipeSummary{{ID: "recipe-1", Name: "Soup", Category: "dinner"}}, nil
+			},
+		})
+		req := httptest.NewRequest(http.MethodGet, "/recipes?category=dinner", nil)
+		rec := httptest.NewRecorder()
+
+		h.GetRecipes(rec, req)
+
+		if rec.Code != http.StatusOK {
+			t.Fatalf("expected status %d, got %d", http.StatusOK, rec.Code)
+		}
+		var recipes []models.RecipeSummary
+		if err := json.Unmarshal(rec.Body.Bytes(), &recipes); err != nil {
+			t.Fatalf("failed to decode recipes: %v", err)
+		}
+		if len(recipes) != 1 || recipes[0].Name != "Soup" {
+			t.Fatalf("unexpected recipes: %#v", recipes)
+		}
+	})
+
+	t.Run("returns a category repository error", func(t *testing.T) {
 		h := NewRecipeHandler(fakeRecipeRepo{
 			getRecipesByCategoryFunc: func(ctx context.Context, category string) ([]models.RecipeSummary, error) {
 				return nil, errors.New("db down")
@@ -139,18 +304,6 @@ func TestRecipeHandlerGetRecipes(t *testing.T) {
 
 		if rec.Code != http.StatusInternalServerError {
 			t.Fatalf("expected status %d, got %d", http.StatusInternalServerError, rec.Code)
-		}
-	})
-
-	t.Run("treats a blank Name Query as no query at all", func(t *testing.T) {
-		h := NewRecipeHandler(fakeRecipeRepo{})
-		req := httptest.NewRequest(http.MethodGet, "/recipes?name=%20%20", nil)
-		rec := httptest.NewRecorder()
-
-		h.GetRecipes(rec, req)
-
-		if rec.Code != http.StatusBadRequest {
-			t.Fatalf("expected status %d, got %d", http.StatusBadRequest, rec.Code)
 		}
 	})
 
