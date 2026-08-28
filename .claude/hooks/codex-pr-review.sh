@@ -7,12 +7,15 @@ set -uo pipefail
 export PATH="$HOME/.local/bin:/opt/homebrew/bin:/usr/local/bin:$PATH"
 PROJECT_DIR="${CLAUDE_PROJECT_DIR:-$PWD}"
 LOG_DIR="$PROJECT_DIR/.claude/hooks/logs"
-# Injected so a test can substitute a stub for the real reviewer.
+# Injected so a test can substitute stubs for the real reviewer and CLI.
 CODEX_BIN="${CODEX_BIN:-codex}"
+GH_BIN="${GH_BIN:-gh}"
 
 run_review() {
-  local pr=$1 repo=$2 status before after
-  before=$(gh pr view "$pr" --repo "$repo" --json comments -q '.comments | length' 2>/dev/null) || before=0
+  local pr=$1 repo=$2 status sentinel
+  # Stamped into the comment so delivery is confirmed by this run's own mark and
+  # not by an unrelated bot or human commenting while codex works.
+  sentinel="codex-review-$pr-$(date +%s)-$$"
 
   "$CODEX_BIN" exec \
     -C "$PROJECT_DIR" \
@@ -32,14 +35,15 @@ Posting on the PR is the deliverable: a review that ends in your final response 
 
   gh pr comment $pr --repo $repo --body-file <that file>
 
+End the body with the line <!-- $sentinel --> exactly as written; it is how this run confirms its comment landed.
+
 Lead with a one-line verdict, then the findings ordered most severe first, each naming file and line. If nothing is worth acting on, post that verdict rather than posting nothing. Do not commit, push, edit repository files, approve, request changes, or merge."
   status=$?
 
-  after=$(gh pr view "$pr" --repo "$repo" --json comments -q '.comments | length' 2>/dev/null) || after=0
-
-  # Suppress future reviews only once the comment is actually on the PR, so a
-  # failed run is retried rather than silently swallowed.
-  if [ "$status" -eq 0 ] && [ "$after" -gt "$before" ]; then
+  # Suppress future reviews only once this run's comment is on the PR, so a
+  # failed or unconfirmed run is retried rather than silently swallowed.
+  if [ "$status" -eq 0 ] && "$GH_BIN" pr view "$pr" --repo "$repo" --json comments \
+      -q '.comments[].body' 2>/dev/null | grep -qF "$sentinel"; then
     : > "$LOG_DIR/.reviewed-$pr"
   fi
   rmdir "$LOG_DIR/.inflight-$pr" 2>/dev/null
@@ -53,7 +57,7 @@ fi
 mkdir -p "$LOG_DIR"
 payload=$(cat)
 
-repo=$(cd "$PROJECT_DIR" && gh repo view --json nameWithOwner -q .nameWithOwner 2>/dev/null)
+repo=$(cd "$PROJECT_DIR" && "$GH_BIN" repo view --json nameWithOwner -q .nameWithOwner 2>/dev/null)
 [ -z "$repo" ] && exit 0
 
 # Only the tool result names the PR just created — tool_input may quote others.
@@ -63,7 +67,11 @@ response=$(printf '%s' "$payload" | jq -r '.tool_response // empty' 2>/dev/null)
 repo_re=$(printf '%s' "$repo" | sed 's/[][\.*^$+?(){}|\\]/\\&/g')
 pr=$(printf '%s' "$response" | jq -r '.stdout // empty' 2>/dev/null \
   | grep -Eo "^https://github\.com/$repo_re/pull/[0-9]+$" | tail -1 | grep -oE '[0-9]+$')
-[ -z "$pr" ] && pr=$(printf '%s' "$response" | jq -r '.number // empty' 2>/dev/null)
+# The MCP tool takes owner/repo, so a session rooted here can open a PR
+# elsewhere. Its number is only ours when those fields name this repository.
+if [ -z "$pr" ] && [ "$(printf '%s' "$payload" | jq -r '"\(.tool_input.owner)/\(.tool_input.repo)"' 2>/dev/null)" = "$repo" ]; then
+  pr=$(printf '%s' "$response" | jq -r '.number // empty' 2>/dev/null)
+fi
 [ -z "$pr" ] && exit 0
 
 # Release a claim whose worker never started or was killed before it could.
