@@ -19,3 +19,8 @@ bin/
 
 # Agent scratch
 .scratch/
+
+# Agent harness (per-machine)
+.claude/settings.local.json
+.claude/hooks/logs/
+.claude/worktrees/
