@@ -183,7 +183,7 @@ func TestRecipeHandlerMatchRecipesReturnsRankedMatches(t *testing.T) {
 		getMatchCandidatesFunc: func(ctx context.Context, tokens []string, limit int) ([]models.MatchCandidate, error) {
 			return []models.MatchCandidate{
 				{
-					Recipe:      models.RecipeSummary{ID: "garlic-bread", Name: "Garlic Bread", Category: "sides", ThumbnailUrl: "https://example.test/bread.jpg", Calories: 200, TotalCookTime: 15},
+					Recipe:      models.RecipeSummary{ID: "garlic-bread", Name: "Garlic Bread", Category: "sides", ImageUrl: "https://example.test/bread.jpg", Calories: 200, TotalCookTime: 15},
 					Ingredients: []string{"garlic", "butter", "bread"},
 				},
 				{

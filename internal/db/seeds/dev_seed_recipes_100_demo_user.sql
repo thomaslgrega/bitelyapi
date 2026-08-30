@@ -20,403 +20,403 @@ CREATE TEMP TABLE seed_recipes (
   name text NOT NULL,
   category text NOT NULL,
   instructions text,
-  thumbnail_url text,
+  image_key text,
   calories integer,
   total_cook_time integer
 ) ON COMMIT DROP;
 
-INSERT INTO seed_recipes (id, name, category, instructions, thumbnail_url, calories, total_cook_time)
+INSERT INTO seed_recipes (id, name, category, instructions, image_key, calories, total_cook_time)
 VALUES
 ('ced3ffc1-d43b-576c-8a7c-5579e64647aa'::uuid, 'Weeknight Beef Tacos', 'Beef', $$1) Prep and chop ingredients.
 2) Cook protein/veg, then add aromatics and seasonings.
 3) Simmer or finish until cooked through.
-4) Taste, adjust seasoning, and serve.$$, 'https://picsum.photos/seed/beef-weeknight-beef-tacos/800/500', 827, 27),
+4) Taste, adjust seasoning, and serve.$$, '', 827, 27),
 ('5c584359-337b-5e7d-80c6-dd385f6881ec'::uuid, 'Beef & Spicy Stir-Fry', 'Beef', $$1) Prep and chop ingredients.
 2) Cook protein/veg, then add aromatics and seasonings.
 3) Simmer or finish until cooked through.
-4) Taste, adjust seasoning, and serve.$$, 'https://picsum.photos/seed/beef-beef--spicy-stir-fry/800/500', 512, 67),
+4) Taste, adjust seasoning, and serve.$$, '', 512, 67),
 ('2cfeec0f-31a7-5b27-bf77-8e5e6563da84'::uuid, 'Classic Beef Chili', 'Beef', $$1) Prep and chop ingredients.
 2) Cook protein/veg, then add aromatics and seasonings.
 3) Simmer or finish until cooked through.
-4) Taste, adjust seasoning, and serve.$$, 'https://picsum.photos/seed/beef-classic-beef-chili/800/500', 640, 35),
+4) Taste, adjust seasoning, and serve.$$, '', 640, 35),
 ('e410dd2f-f321-564c-9cec-a3cfb036c9c0'::uuid, 'Beef Burger (Lemon)', 'Beef', $$1) Prep and chop ingredients.
 2) Cook protein/veg, then add aromatics and seasonings.
 3) Simmer or finish until cooked through.
-4) Taste, adjust seasoning, and serve.$$, 'https://picsum.photos/seed/beef-beef-burger-lemon/800/500', 614, 28),
+4) Taste, adjust seasoning, and serve.$$, '', 614, 28),
 ('133b2dc5-06f4-5ff3-9eef-c3a9370c0680'::uuid, 'Beef Rice Bowl (Herb)', 'Beef', $$1) Prep and chop ingredients.
 2) Cook protein/veg, then add aromatics and seasonings.
 3) Simmer or finish until cooked through.
-4) Taste, adjust seasoning, and serve.$$, 'https://picsum.photos/seed/beef-beef-rice-bowl-herb/800/500', 877, 26),
+4) Taste, adjust seasoning, and serve.$$, '', 877, 26),
 ('ef51d7ce-9ecd-50fe-b653-c951faf008e8'::uuid, 'Beef Lettuce Wraps', 'Beef', $$1) Prep and chop ingredients.
 2) Cook protein/veg, then add aromatics and seasonings.
 3) Simmer or finish until cooked through.
-4) Taste, adjust seasoning, and serve.$$, 'https://picsum.photos/seed/beef-beef-lettuce-wraps/800/500', 846, 67),
+4) Taste, adjust seasoning, and serve.$$, '', 846, 67),
 ('cc80dc63-8e54-5cf7-821c-97961e58f84e'::uuid, 'Beef Sweet Skillet', 'Beef', $$1) Prep and chop ingredients.
 2) Cook protein/veg, then add aromatics and seasonings.
 3) Simmer or finish until cooked through.
-4) Taste, adjust seasoning, and serve.$$, 'https://picsum.photos/seed/beef-beef-sweet-skillet/800/500', 779, 25),
+4) Taste, adjust seasoning, and serve.$$, '', 779, 25),
 ('9cdbc9bb-02c3-552d-9e96-36036f40e948'::uuid, 'Beef Pasta Bake', 'Beef', $$1) Prep and chop ingredients.
 2) Cook protein/veg, then add aromatics and seasonings.
 3) Simmer or finish until cooked through.
-4) Taste, adjust seasoning, and serve.$$, 'https://picsum.photos/seed/beef-beef-pasta-bake/800/500', 802, 47),
+4) Taste, adjust seasoning, and serve.$$, '', 802, 47),
 ('2866b2a1-3eb7-506b-9065-ae7c861d5de1'::uuid, 'Slow-Simmer Beef Stew', 'Beef', $$1) Prep and chop ingredients.
 2) Cook protein/veg, then add aromatics and seasonings.
 3) Simmer or finish until cooked through.
-4) Taste, adjust seasoning, and serve.$$, 'https://picsum.photos/seed/beef-slow-simmer-beef-stew/800/500', 516, 21),
+4) Taste, adjust seasoning, and serve.$$, '', 516, 21),
 ('558ac48b-627e-5b8e-afb6-a88d05cbda69'::uuid, 'Beef Quesadillas', 'Beef', $$1) Prep and chop ingredients.
 2) Cook protein/veg, then add aromatics and seasonings.
 3) Simmer or finish until cooked through.
-4) Taste, adjust seasoning, and serve.$$, 'https://picsum.photos/seed/beef-beef-quesadillas/800/500', 547, 33),
+4) Taste, adjust seasoning, and serve.$$, '', 547, 33),
 ('6e70f710-b1e7-5747-86d7-85cd61e9d648'::uuid, 'Lemon Garlic Chicken', 'Chicken', $$1) Prep and chop ingredients.
 2) Cook protein/veg, then add aromatics and seasonings.
 3) Simmer or finish until cooked through.
-4) Taste, adjust seasoning, and serve.$$, 'https://picsum.photos/seed/chicken-lemon-garlic-chicken/800/500', 569, 47),
+4) Taste, adjust seasoning, and serve.$$, '', 569, 47),
 ('e22aaba5-57ed-5a58-83f9-bd3ec6c4c178'::uuid, 'Chicken Fajita Bowls', 'Chicken', $$1) Prep and chop ingredients.
 2) Cook protein/veg, then add aromatics and seasonings.
 3) Simmer or finish until cooked through.
-4) Taste, adjust seasoning, and serve.$$, 'https://picsum.photos/seed/chicken-chicken-fajita-bowls/800/500', 758, 16),
+4) Taste, adjust seasoning, and serve.$$, '', 758, 16),
 ('9d7b95e2-2923-5160-aff6-03de0f3dc88b'::uuid, 'Chicken Teriyaki', 'Chicken', $$1) Prep and chop ingredients.
 2) Cook protein/veg, then add aromatics and seasonings.
 3) Simmer or finish until cooked through.
-4) Taste, adjust seasoning, and serve.$$, 'https://picsum.photos/seed/chicken-chicken-teriyaki/800/500', 737, 27),
+4) Taste, adjust seasoning, and serve.$$, '', 737, 27),
 ('634d8556-441d-5180-90a4-347a256e4540'::uuid, 'Creamy Chicken Pasta', 'Chicken', $$1) Prep and chop ingredients.
 2) Cook protein/veg, then add aromatics and seasonings.
 3) Simmer or finish until cooked through.
-4) Taste, adjust seasoning, and serve.$$, 'https://picsum.photos/seed/chicken-creamy-chicken-pasta/800/500', 816, 56),
+4) Taste, adjust seasoning, and serve.$$, '', 816, 56),
 ('49272eb3-1b6c-5cd3-859d-5c0a6e2bda4f'::uuid, 'Chicken Smoky Salad', 'Chicken', $$1) Prep and chop ingredients.
 2) Cook protein/veg, then add aromatics and seasonings.
 3) Simmer or finish until cooked through.
-4) Taste, adjust seasoning, and serve.$$, 'https://picsum.photos/seed/chicken-chicken-smoky-salad/800/500', 809, 49),
+4) Taste, adjust seasoning, and serve.$$, '', 809, 49),
 ('a63fbab2-fa52-5a49-a507-ef7f9f9e62cf'::uuid, 'Sheet Pan Chicken & Veggies', 'Chicken', $$1) Prep and chop ingredients.
 2) Cook protein/veg, then add aromatics and seasonings.
 3) Simmer or finish until cooked through.
-4) Taste, adjust seasoning, and serve.$$, 'https://picsum.photos/seed/chicken-sheet-pan-chicken--veggies/800/500', 664, 29),
+4) Taste, adjust seasoning, and serve.$$, '', 664, 29),
 ('19aeb489-becf-5485-adc7-f6d12917032c'::uuid, 'Chicken Stir-Fry (Crispy)', 'Chicken', $$1) Prep and chop ingredients.
 2) Cook protein/veg, then add aromatics and seasonings.
 3) Simmer or finish until cooked through.
-4) Taste, adjust seasoning, and serve.$$, 'https://picsum.photos/seed/chicken-chicken-stir-fry-crispy/800/500', 679, 52),
+4) Taste, adjust seasoning, and serve.$$, '', 679, 52),
 ('e1b6903b-3107-58e3-a305-b17355f68c25'::uuid, 'Chicken Parmesan (Quick)', 'Chicken', $$1) Prep and chop ingredients.
 2) Cook protein/veg, then add aromatics and seasonings.
 3) Simmer or finish until cooked through.
-4) Taste, adjust seasoning, and serve.$$, 'https://picsum.photos/seed/chicken-chicken-parmesan-quick/800/500', 592, 15),
+4) Taste, adjust seasoning, and serve.$$, '', 592, 15),
 ('d80397f2-d891-5bff-b189-a4f8746ac62d'::uuid, 'Chicken Tortilla Soup', 'Chicken', $$1) Prep and chop ingredients.
 2) Cook protein/veg, then add aromatics and seasonings.
 3) Simmer or finish until cooked through.
-4) Taste, adjust seasoning, and serve.$$, 'https://picsum.photos/seed/chicken-chicken-tortilla-soup/800/500', 838, 25),
+4) Taste, adjust seasoning, and serve.$$, '', 838, 25),
 ('ada2dc0d-afd7-5613-8d26-fba3697b5ceb'::uuid, 'Honey Mustard Chicken', 'Chicken', $$1) Prep and chop ingredients.
 2) Cook protein/veg, then add aromatics and seasonings.
 3) Simmer or finish until cooked through.
-4) Taste, adjust seasoning, and serve.$$, 'https://picsum.photos/seed/chicken-honey-mustard-chicken/800/500', 807, 42),
+4) Taste, adjust seasoning, and serve.$$, '', 807, 42),
 ('0bc39706-d1d5-57fa-b5bc-d2fcd21f75ef'::uuid, 'Fudgy Cocoa Brownies', 'Dessert', $$1) Preheat oven (if baking) and prepare your pan.
 2) Mix wet ingredients, then fold in dry ingredients just until combined.
 3) Bake/chill until set; cool before slicing or serving.
-4) Store leftovers covered.$$, 'https://picsum.photos/seed/dessert-fudgy-cocoa-brownies/800/500', 267, 37),
+4) Store leftovers covered.$$, '', 267, 37),
 ('7c2e30ef-cede-58f6-b238-10adbbf4c0be'::uuid, 'Chocolate Chip Cookies', 'Dessert', $$1) Preheat oven (if baking) and prepare your pan.
 2) Mix wet ingredients, then fold in dry ingredients just until combined.
 3) Bake/chill until set; cool before slicing or serving.
-4) Store leftovers covered.$$, 'https://picsum.photos/seed/dessert-chocolate-chip-cookies/800/500', 219, 33),
+4) Store leftovers covered.$$, '', 219, 33),
 ('98746583-0d9f-5278-a14c-fc7b545ab8b8'::uuid, 'Classic Banana Bread', 'Dessert', $$1) Preheat oven (if baking) and prepare your pan.
 2) Mix wet ingredients, then fold in dry ingredients just until combined.
 3) Bake/chill until set; cool before slicing or serving.
-4) Store leftovers covered.$$, 'https://picsum.photos/seed/dessert-classic-banana-bread/800/500', 375, 41),
+4) Store leftovers covered.$$, '', 375, 41),
 ('c0b3a766-aa45-5938-95cd-a747d75afc78'::uuid, 'Smoky Mug Cake', 'Dessert', $$1) Preheat oven (if baking) and prepare your pan.
 2) Mix wet ingredients, then fold in dry ingredients just until combined.
 3) Bake/chill until set; cool before slicing or serving.
-4) Store leftovers covered.$$, 'https://picsum.photos/seed/dessert-smoky-mug-cake/800/500', 206, 25),
+4) Store leftovers covered.$$, '', 206, 25),
 ('55f27fee-fbb9-5a13-8c36-f122413f5fcc'::uuid, 'No-Bake Cheesecake Cups (Sweet)', 'Dessert', $$1) Preheat oven (if baking) and prepare your pan.
 2) Mix wet ingredients, then fold in dry ingredients just until combined.
 3) Bake/chill until set; cool before slicing or serving.
-4) Store leftovers covered.$$, 'https://picsum.photos/seed/dessert-no-bake-cheesecake-cups-sweet/800/500', 277, 26),
+4) Store leftovers covered.$$, '', 277, 26),
 ('8d90b5b8-9a45-5623-9006-5b2e4b73dd68'::uuid, 'Oatmeal Raisin Cookies', 'Dessert', $$1) Preheat oven (if baking) and prepare your pan.
 2) Mix wet ingredients, then fold in dry ingredients just until combined.
 3) Bake/chill until set; cool before slicing or serving.
-4) Store leftovers covered.$$, 'https://picsum.photos/seed/dessert-oatmeal-raisin-cookies/800/500', 271, 74),
+4) Store leftovers covered.$$, '', 271, 74),
 ('3bd1c196-f1c9-580f-bd62-42e17cf162da'::uuid, 'Lemon Bars (Creamy)', 'Dessert', $$1) Preheat oven (if baking) and prepare your pan.
 2) Mix wet ingredients, then fold in dry ingredients just until combined.
 3) Bake/chill until set; cool before slicing or serving.
-4) Store leftovers covered.$$, 'https://picsum.photos/seed/dessert-lemon-bars-creamy/800/500', 268, 58),
+4) Store leftovers covered.$$, '', 268, 58),
 ('c4e30e25-3b9e-518c-a699-5d02cec395ae'::uuid, 'Apple Crisp (Zesty)', 'Dessert', $$1) Preheat oven (if baking) and prepare your pan.
 2) Mix wet ingredients, then fold in dry ingredients just until combined.
 3) Bake/chill until set; cool before slicing or serving.
-4) Store leftovers covered.$$, 'https://picsum.photos/seed/dessert-apple-crisp-zesty/800/500', 247, 71),
+4) Store leftovers covered.$$, '', 247, 71),
 ('066df4b8-d7d8-5cb4-9438-4f72c9c903bb'::uuid, 'Peanut Butter Cookies', 'Dessert', $$1) Preheat oven (if baking) and prepare your pan.
 2) Mix wet ingredients, then fold in dry ingredients just until combined.
 3) Bake/chill until set; cool before slicing or serving.
-4) Store leftovers covered.$$, 'https://picsum.photos/seed/dessert-peanut-butter-cookies/800/500', 191, 66),
+4) Store leftovers covered.$$, '', 191, 66),
 ('bcd395fe-4f1e-52ab-8c25-9e16dc22020a'::uuid, 'Chocolate Pudding (Ginger)', 'Dessert', $$1) Preheat oven (if baking) and prepare your pan.
 2) Mix wet ingredients, then fold in dry ingredients just until combined.
 3) Bake/chill until set; cool before slicing or serving.
-4) Store leftovers covered.$$, 'https://picsum.photos/seed/dessert-chocolate-pudding-ginger/800/500', 297, 54),
+4) Store leftovers covered.$$, '', 297, 54),
 ('2981d71a-8174-569f-beaf-f8e601792726'::uuid, 'Creamy Tomato Soup', 'Other', $$1) Prep and chop ingredients.
 2) Cook protein/veg, then add aromatics and seasonings.
 3) Simmer or finish until cooked through.
-4) Taste, adjust seasoning, and serve.$$, 'https://picsum.photos/seed/other-creamy-tomato-soup/800/500', 277, 29),
+4) Taste, adjust seasoning, and serve.$$, '', 277, 29),
 ('9a6490b0-e2e5-5aea-bc00-46d3a216e5c5'::uuid, 'Turkey Chili (Quick)', 'Other', $$1) Prep and chop ingredients.
 2) Cook protein/veg, then add aromatics and seasonings.
 3) Simmer or finish until cooked through.
-4) Taste, adjust seasoning, and serve.$$, 'https://picsum.photos/seed/other-turkey-chili-quick/800/500', 230, 40),
+4) Taste, adjust seasoning, and serve.$$, '', 230, 40),
 ('95714ebb-ae76-5fb3-a3da-882595b267fa'::uuid, 'Veggie & Rice Bowl', 'Other', $$1) Prep and chop ingredients.
 2) Cook protein/veg, then add aromatics and seasonings.
 3) Simmer or finish until cooked through.
-4) Taste, adjust seasoning, and serve.$$, 'https://picsum.photos/seed/other-veggie--rice-bowl/800/500', 450, 58),
+4) Taste, adjust seasoning, and serve.$$, '', 450, 58),
 ('501955a6-71c6-5fb7-83b3-d68f9b714477'::uuid, 'Grilled Cheese (Sweet)', 'Other', $$1) Prep and chop ingredients.
 2) Cook protein/veg, then add aromatics and seasonings.
 3) Simmer or finish until cooked through.
-4) Taste, adjust seasoning, and serve.$$, 'https://picsum.photos/seed/other-grilled-cheese-sweet/800/500', 520, 41),
+4) Taste, adjust seasoning, and serve.$$, '', 520, 41),
 ('43b4da68-85b9-5379-831c-bd5d8dd4775b'::uuid, 'Simple Fried Rice', 'Other', $$1) Prep and chop ingredients.
 2) Cook protein/veg, then add aromatics and seasonings.
 3) Simmer or finish until cooked through.
-4) Taste, adjust seasoning, and serve.$$, 'https://picsum.photos/seed/other-simple-fried-rice/800/500', 346, 50),
+4) Taste, adjust seasoning, and serve.$$, '', 346, 50),
 ('0ab19725-1a7c-5d79-9c96-799e59098665'::uuid, 'Quinoa Bowl (Creamy)', 'Other', $$1) Prep and chop ingredients.
 2) Cook protein/veg, then add aromatics and seasonings.
 3) Simmer or finish until cooked through.
-4) Taste, adjust seasoning, and serve.$$, 'https://picsum.photos/seed/other-quinoa-bowl-creamy/800/500', 221, 7),
+4) Taste, adjust seasoning, and serve.$$, '', 221, 7),
 ('0ae2d4b1-423d-5415-bea9-2b9d08fb5a22'::uuid, 'Baked Potatoes (Zesty)', 'Other', $$1) Prep and chop ingredients.
 2) Cook protein/veg, then add aromatics and seasonings.
 3) Simmer or finish until cooked through.
-4) Taste, adjust seasoning, and serve.$$, 'https://picsum.photos/seed/other-baked-potatoes-zesty/800/500', 383, 54),
+4) Taste, adjust seasoning, and serve.$$, '', 383, 54),
 ('39df1c43-555e-53e5-9414-b2bb3a88237b'::uuid, 'Homemade Salsa (Sesame)', 'Other', $$1) Prep and chop ingredients.
 2) Cook protein/veg, then add aromatics and seasonings.
 3) Simmer or finish until cooked through.
-4) Taste, adjust seasoning, and serve.$$, 'https://picsum.photos/seed/other-homemade-salsa-sesame/800/500', 446, 10),
+4) Taste, adjust seasoning, and serve.$$, '', 446, 10),
 ('3b23f590-17da-51e6-8aff-c378e559841c'::uuid, 'Easy Hummus (Ginger)', 'Other', $$1) Prep and chop ingredients.
 2) Cook protein/veg, then add aromatics and seasonings.
 3) Simmer or finish until cooked through.
-4) Taste, adjust seasoning, and serve.$$, 'https://picsum.photos/seed/other-easy-hummus-ginger/800/500', 388, 60),
+4) Taste, adjust seasoning, and serve.$$, '', 388, 60),
 ('a176f573-5785-5cd4-bd4a-c7ad0d0b2469'::uuid, 'Snack Plate (BBQ)', 'Other', $$1) Prep and chop ingredients.
 2) Cook protein/veg, then add aromatics and seasonings.
 3) Simmer or finish until cooked through.
-4) Taste, adjust seasoning, and serve.$$, 'https://picsum.photos/seed/other-snack-plate-bbq/800/500', 253, 29),
+4) Taste, adjust seasoning, and serve.$$, '', 253, 29),
 ('fdd74c62-5009-53d9-bc37-5203f4a6fe6d'::uuid, 'Tomato Basil Pasta', 'Pasta', $$1) Boil pasta in salted water until al dente; reserve a splash of pasta water.
 2) Build sauce in a pan, then toss pasta with sauce and a little pasta water.
-3) Finish with cheese/herbs and adjust seasoning.$$, 'https://picsum.photos/seed/pasta-tomato-basil-pasta/800/500', 592, 44),
+3) Finish with cheese/herbs and adjust seasoning.$$, '', 592, 44),
 ('7bc5b32b-6e41-562b-a1e0-57acb7e52248'::uuid, 'Pesto Pasta with Smoky', 'Pasta', $$1) Boil pasta in salted water until al dente; reserve a splash of pasta water.
 2) Build sauce in a pan, then toss pasta with sauce and a little pasta water.
-3) Finish with cheese/herbs and adjust seasoning.$$, 'https://picsum.photos/seed/pasta-pesto-pasta-with-smoky/800/500', 775, 38),
+3) Finish with cheese/herbs and adjust seasoning.$$, '', 775, 38),
 ('23f9d62b-3156-58eb-8e9b-c570307482cb'::uuid, 'Baked Ziti', 'Pasta', $$1) Boil pasta in salted water until al dente; reserve a splash of pasta water.
 2) Build sauce in a pan, then toss pasta with sauce and a little pasta water.
-3) Finish with cheese/herbs and adjust seasoning.$$, 'https://picsum.photos/seed/pasta-baked-ziti/800/500', 533, 38),
+3) Finish with cheese/herbs and adjust seasoning.$$, '', 533, 38),
 ('6f4ee5d9-05df-5a2b-955b-2e75877e2539'::uuid, 'Garlic Parmesan Pasta', 'Pasta', $$1) Boil pasta in salted water until al dente; reserve a splash of pasta water.
 2) Build sauce in a pan, then toss pasta with sauce and a little pasta water.
-3) Finish with cheese/herbs and adjust seasoning.$$, 'https://picsum.photos/seed/pasta-garlic-parmesan-pasta/800/500', 631, 28),
+3) Finish with cheese/herbs and adjust seasoning.$$, '', 631, 28),
 ('9bc0b6ff-d7ef-5151-b1a1-13c27dc3b4ac'::uuid, 'Creamy Alfredo (Creamy)', 'Pasta', $$1) Boil pasta in salted water until al dente; reserve a splash of pasta water.
 2) Build sauce in a pan, then toss pasta with sauce and a little pasta water.
-3) Finish with cheese/herbs and adjust seasoning.$$, 'https://picsum.photos/seed/pasta-creamy-alfredo-creamy/800/500', 793, 32),
+3) Finish with cheese/herbs and adjust seasoning.$$, '', 793, 32),
 ('12e9d911-c173-5dab-8b0b-12f189a2b5de'::uuid, 'One-Pot Pasta (Zesty)', 'Pasta', $$1) Boil pasta in salted water until al dente; reserve a splash of pasta water.
 2) Build sauce in a pan, then toss pasta with sauce and a little pasta water.
-3) Finish with cheese/herbs and adjust seasoning.$$, 'https://picsum.photos/seed/pasta-one-pot-pasta-zesty/800/500', 809, 19),
+3) Finish with cheese/herbs and adjust seasoning.$$, '', 809, 19),
 ('f7b2162a-c42d-50c5-b2d0-918661f17e44'::uuid, 'Spicy Arrabbiata', 'Pasta', $$1) Boil pasta in salted water until al dente; reserve a splash of pasta water.
 2) Build sauce in a pan, then toss pasta with sauce and a little pasta water.
-3) Finish with cheese/herbs and adjust seasoning.$$, 'https://picsum.photos/seed/pasta-spicy-arrabbiata/800/500', 761, 55),
+3) Finish with cheese/herbs and adjust seasoning.$$, '', 761, 55),
 ('9c3c5294-948c-5aa4-a85e-2eddd9957919'::uuid, 'Lemon Ricotta Pasta', 'Pasta', $$1) Boil pasta in salted water until al dente; reserve a splash of pasta water.
 2) Build sauce in a pan, then toss pasta with sauce and a little pasta water.
-3) Finish with cheese/herbs and adjust seasoning.$$, 'https://picsum.photos/seed/pasta-lemon-ricotta-pasta/800/500', 537, 49),
+3) Finish with cheese/herbs and adjust seasoning.$$, '', 537, 49),
 ('a8b913c4-a147-55fe-a34f-a440058cf6dd'::uuid, 'Pasta Salad (BBQ)', 'Pasta', $$1) Boil pasta in salted water until al dente; reserve a splash of pasta water.
 2) Build sauce in a pan, then toss pasta with sauce and a little pasta water.
-3) Finish with cheese/herbs and adjust seasoning.$$, 'https://picsum.photos/seed/pasta-pasta-salad-bbq/800/500', 823, 30),
+3) Finish with cheese/herbs and adjust seasoning.$$, '', 823, 30),
 ('7faaf8b8-ec40-51a5-a5f5-dfe7eed91a83'::uuid, 'Mac & Cheese (Stovetop)', 'Pasta', $$1) Boil pasta in salted water until al dente; reserve a splash of pasta water.
 2) Build sauce in a pan, then toss pasta with sauce and a little pasta water.
-3) Finish with cheese/herbs and adjust seasoning.$$, 'https://picsum.photos/seed/pasta-mac--cheese-stovetop/800/500', 533, 44),
+3) Finish with cheese/herbs and adjust seasoning.$$, '', 533, 44),
 ('2d2539b2-c2d6-50f0-977d-0e767a5f69ff'::uuid, 'Honey Garlic Pork Chops', 'Pork', $$1) Prep and chop ingredients.
 2) Cook protein/veg, then add aromatics and seasonings.
 3) Simmer or finish until cooked through.
-4) Taste, adjust seasoning, and serve.$$, 'https://picsum.photos/seed/pork-honey-garlic-pork-chops/800/500', 694, 54),
+4) Taste, adjust seasoning, and serve.$$, '', 694, 54),
 ('19f403ca-20a3-50b9-abea-e64e7bb6017a'::uuid, 'Pulled Pork (Sweet)', 'Pork', $$1) Prep and chop ingredients.
 2) Cook protein/veg, then add aromatics and seasonings.
 3) Simmer or finish until cooked through.
-4) Taste, adjust seasoning, and serve.$$, 'https://picsum.photos/seed/pork-pulled-pork-sweet/800/500', 827, 108),
+4) Taste, adjust seasoning, and serve.$$, '', 827, 108),
 ('8c61a08b-f5bd-5d7d-97d2-bf45f38d82e3'::uuid, 'Pork Fried Rice', 'Pork', $$1) Prep and chop ingredients.
 2) Cook protein/veg, then add aromatics and seasonings.
 3) Simmer or finish until cooked through.
-4) Taste, adjust seasoning, and serve.$$, 'https://picsum.photos/seed/pork-pork-fried-rice/800/500', 785, 48),
+4) Taste, adjust seasoning, and serve.$$, '', 785, 48),
 ('1dbd5559-297c-5246-bdcd-3bcb30f28a1a'::uuid, 'Pork Creamy Tacos', 'Pork', $$1) Prep and chop ingredients.
 2) Cook protein/veg, then add aromatics and seasonings.
 3) Simmer or finish until cooked through.
-4) Taste, adjust seasoning, and serve.$$, 'https://picsum.photos/seed/pork-pork-creamy-tacos/800/500', 850, 61),
+4) Taste, adjust seasoning, and serve.$$, '', 850, 61),
 ('02b74751-ac90-5faa-b6d1-52d88b482b0b'::uuid, 'Pork Tenderloin (Roasted)', 'Pork', $$1) Prep and chop ingredients.
 2) Cook protein/veg, then add aromatics and seasonings.
 3) Simmer or finish until cooked through.
-4) Taste, adjust seasoning, and serve.$$, 'https://picsum.photos/seed/pork-pork-tenderloin-roasted/800/500', 931, 118),
+4) Taste, adjust seasoning, and serve.$$, '', 931, 118),
 ('efe492bf-bbf3-521d-826d-44a457f39232'::uuid, 'Pork Ramen Bowl', 'Pork', $$1) Prep and chop ingredients.
 2) Cook protein/veg, then add aromatics and seasonings.
 3) Simmer or finish until cooked through.
-4) Taste, adjust seasoning, and serve.$$, 'https://picsum.photos/seed/pork-pork-ramen-bowl/800/500', 897, 27),
+4) Taste, adjust seasoning, and serve.$$, '', 897, 27),
 ('4848736f-65b2-57ab-9f1b-62d7645832f9'::uuid, 'Sweet & Sour Pork', 'Pork', $$1) Prep and chop ingredients.
 2) Cook protein/veg, then add aromatics and seasonings.
 3) Simmer or finish until cooked through.
-4) Taste, adjust seasoning, and serve.$$, 'https://picsum.photos/seed/pork-sweet--sour-pork/800/500', 617, 24),
+4) Taste, adjust seasoning, and serve.$$, '', 617, 24),
 ('c79c78a6-8b65-57c6-9ee7-7939ab956613'::uuid, 'Pork Sausage Pasta', 'Pork', $$1) Prep and chop ingredients.
 2) Cook protein/veg, then add aromatics and seasonings.
 3) Simmer or finish until cooked through.
-4) Taste, adjust seasoning, and serve.$$, 'https://picsum.photos/seed/pork-pork-sausage-pasta/800/500', 912, 60),
+4) Taste, adjust seasoning, and serve.$$, '', 912, 60),
 ('613a8382-1091-565c-86cc-37022bca1946'::uuid, 'Pork and Cabbage Skillet', 'Pork', $$1) Prep and chop ingredients.
 2) Cook protein/veg, then add aromatics and seasonings.
 3) Simmer or finish until cooked through.
-4) Taste, adjust seasoning, and serve.$$, 'https://picsum.photos/seed/pork-pork-and-cabbage-skillet/800/500', 705, 54),
+4) Taste, adjust seasoning, and serve.$$, '', 705, 54),
 ('110894b7-adea-507a-bf70-80cea261d9b6'::uuid, 'Carnitas Bowl', 'Pork', $$1) Prep and chop ingredients.
 2) Cook protein/veg, then add aromatics and seasonings.
 3) Simmer or finish until cooked through.
-4) Taste, adjust seasoning, and serve.$$, 'https://picsum.photos/seed/pork-carnitas-bowl/800/500', 533, 47),
+4) Taste, adjust seasoning, and serve.$$, '', 533, 47),
 ('04f148d1-ab13-5dbe-93c9-a3acce81d221'::uuid, 'Sheet Pan Salmon & Sweet', 'Seafood', $$1) Prep and chop ingredients.
 2) Cook protein/veg, then add aromatics and seasonings.
 3) Simmer or finish until cooked through.
-4) Taste, adjust seasoning, and serve.$$, 'https://picsum.photos/seed/seafood-sheet-pan-salmon--sweet/800/500', 640, 30),
+4) Taste, adjust seasoning, and serve.$$, '', 640, 30),
 ('32cc11a8-c195-513c-8fa4-44e846b56933'::uuid, 'Garlic Butter Shrimp', 'Seafood', $$1) Prep and chop ingredients.
 2) Cook protein/veg, then add aromatics and seasonings.
 3) Simmer or finish until cooked through.
-4) Taste, adjust seasoning, and serve.$$, 'https://picsum.photos/seed/seafood-garlic-butter-shrimp/800/500', 458, 41),
+4) Taste, adjust seasoning, and serve.$$, '', 458, 41),
 ('f5f314c0-a8d4-50e8-a2d8-997bf26840f8'::uuid, 'Shrimp Tacos (Creamy)', 'Seafood', $$1) Prep and chop ingredients.
 2) Cook protein/veg, then add aromatics and seasonings.
 3) Simmer or finish until cooked through.
-4) Taste, adjust seasoning, and serve.$$, 'https://picsum.photos/seed/seafood-shrimp-tacos-creamy/800/500', 552, 39),
+4) Taste, adjust seasoning, and serve.$$, '', 552, 39),
 ('c355d867-7a68-58d3-b389-e8d27704251d'::uuid, 'Tuna Salad Wrap', 'Seafood', $$1) Prep and chop ingredients.
 2) Cook protein/veg, then add aromatics and seasonings.
 3) Simmer or finish until cooked through.
-4) Taste, adjust seasoning, and serve.$$, 'https://picsum.photos/seed/seafood-tuna-salad-wrap/800/500', 423, 26),
+4) Taste, adjust seasoning, and serve.$$, '', 423, 26),
 ('9501d650-e0c7-545c-8a26-bec5b953a829'::uuid, 'Fish Taco Bowls', 'Seafood', $$1) Prep and chop ingredients.
 2) Cook protein/veg, then add aromatics and seasonings.
 3) Simmer or finish until cooked through.
-4) Taste, adjust seasoning, and serve.$$, 'https://picsum.photos/seed/seafood-fish-taco-bowls/800/500', 421, 25),
+4) Taste, adjust seasoning, and serve.$$, '', 421, 25),
 ('4a2111a3-f682-511b-b4c4-20b3c6c3eb1b'::uuid, 'Salmon Rice Bowl', 'Seafood', $$1) Prep and chop ingredients.
 2) Cook protein/veg, then add aromatics and seasonings.
 3) Simmer or finish until cooked through.
-4) Taste, adjust seasoning, and serve.$$, 'https://picsum.photos/seed/seafood-salmon-rice-bowl/800/500', 731, 45),
+4) Taste, adjust seasoning, and serve.$$, '', 731, 45),
 ('cf4d26e6-fd86-5209-91ec-e0ff3e7410bd'::uuid, 'Pasta with Shrimp (BBQ)', 'Seafood', $$1) Prep and chop ingredients.
 2) Cook protein/veg, then add aromatics and seasonings.
 3) Simmer or finish until cooked through.
-4) Taste, adjust seasoning, and serve.$$, 'https://picsum.photos/seed/seafood-pasta-with-shrimp-bbq/800/500', 625, 26),
+4) Taste, adjust seasoning, and serve.$$, '', 625, 26),
 ('e7e682cc-cd15-544c-8b21-b67cfd4d8aa0'::uuid, 'Baked Cod (Lemon)', 'Seafood', $$1) Prep and chop ingredients.
 2) Cook protein/veg, then add aromatics and seasonings.
 3) Simmer or finish until cooked through.
-4) Taste, adjust seasoning, and serve.$$, 'https://picsum.photos/seed/seafood-baked-cod-lemon/800/500', 732, 37),
+4) Taste, adjust seasoning, and serve.$$, '', 732, 37),
 ('9fd3101f-ed19-5569-835d-f56e708fb0c4'::uuid, 'Seafood Stir-Fry', 'Seafood', $$1) Prep and chop ingredients.
 2) Cook protein/veg, then add aromatics and seasonings.
 3) Simmer or finish until cooked through.
-4) Taste, adjust seasoning, and serve.$$, 'https://picsum.photos/seed/seafood-seafood-stir-fry/800/500', 648, 35),
+4) Taste, adjust seasoning, and serve.$$, '', 648, 35),
 ('a0f9ac24-7bd9-5b8c-a195-52f25a9176dc'::uuid, 'Sardine Toast (Basil)', 'Seafood', $$1) Prep and chop ingredients.
 2) Cook protein/veg, then add aromatics and seasonings.
 3) Simmer or finish until cooked through.
-4) Taste, adjust seasoning, and serve.$$, 'https://picsum.photos/seed/seafood-sardine-toast-basil/800/500', 535, 24),
+4) Taste, adjust seasoning, and serve.$$, '', 535, 24),
 ('7478213c-93a6-52f6-ae7b-631ca7c1540a'::uuid, 'Roasted Garlic Potatoes', 'Side', $$1) Prep and chop ingredients.
 2) Cook protein/veg, then add aromatics and seasonings.
 3) Simmer or finish until cooked through.
-4) Taste, adjust seasoning, and serve.$$, 'https://picsum.photos/seed/side-roasted-garlic-potatoes/800/500', 190, 42),
+4) Taste, adjust seasoning, and serve.$$, '', 190, 42),
 ('f9523376-1410-501a-844e-a8001137f566'::uuid, 'Simple Coleslaw', 'Side', $$1) Prep and chop ingredients.
 2) Cook protein/veg, then add aromatics and seasonings.
 3) Simmer or finish until cooked through.
-4) Taste, adjust seasoning, and serve.$$, 'https://picsum.photos/seed/side-simple-coleslaw/800/500', 372, 15),
+4) Taste, adjust seasoning, and serve.$$, '', 372, 15),
 ('50a24b51-1906-5cee-8df0-b75d5b5a46ac'::uuid, 'Garlic Green Beans', 'Side', $$1) Prep and chop ingredients.
 2) Cook protein/veg, then add aromatics and seasonings.
 3) Simmer or finish until cooked through.
-4) Taste, adjust seasoning, and serve.$$, 'https://picsum.photos/seed/side-garlic-green-beans/800/500', 144, 17),
+4) Taste, adjust seasoning, and serve.$$, '', 144, 17),
 ('efd3e5c0-5d3f-56e7-86af-d2e13b54b80f'::uuid, 'Honey Glazed Carrots', 'Side', $$1) Prep and chop ingredients.
 2) Cook protein/veg, then add aromatics and seasonings.
 3) Simmer or finish until cooked through.
-4) Taste, adjust seasoning, and serve.$$, 'https://picsum.photos/seed/side-honey-glazed-carrots/800/500', 198, 20),
+4) Taste, adjust seasoning, and serve.$$, '', 198, 20),
 ('98469b7e-a5dc-54f1-9147-0df4a34ba840'::uuid, 'Cucumber Salad (Ginger)', 'Side', $$1) Prep and chop ingredients.
 2) Cook protein/veg, then add aromatics and seasonings.
 3) Simmer or finish until cooked through.
-4) Taste, adjust seasoning, and serve.$$, 'https://picsum.photos/seed/side-cucumber-salad-ginger/800/500', 336, 14),
+4) Taste, adjust seasoning, and serve.$$, '', 336, 14),
 ('6da33140-98b8-5519-87cf-cffd8307c94c'::uuid, 'Corn on the Cob (BBQ)', 'Side', $$1) Prep and chop ingredients.
 2) Cook protein/veg, then add aromatics and seasonings.
 3) Simmer or finish until cooked through.
-4) Taste, adjust seasoning, and serve.$$, 'https://picsum.photos/seed/side-corn-on-the-cob-bbq/800/500', 317, 34),
+4) Taste, adjust seasoning, and serve.$$, '', 317, 34),
 ('59265790-cb79-532d-b01c-fea147198fa0'::uuid, 'Roasted Broccoli (Maple)', 'Side', $$1) Prep and chop ingredients.
 2) Cook protein/veg, then add aromatics and seasonings.
 3) Simmer or finish until cooked through.
-4) Taste, adjust seasoning, and serve.$$, 'https://picsum.photos/seed/side-roasted-broccoli-maple/800/500', 425, 39),
+4) Taste, adjust seasoning, and serve.$$, '', 425, 39),
 ('d7f36ed2-05a7-5063-8b50-d57157577820'::uuid, 'Mashed Potatoes (Chili)', 'Side', $$1) Prep and chop ingredients.
 2) Cook protein/veg, then add aromatics and seasonings.
 3) Simmer or finish until cooked through.
-4) Taste, adjust seasoning, and serve.$$, 'https://picsum.photos/seed/side-mashed-potatoes-chili/800/500', 390, 26),
+4) Taste, adjust seasoning, and serve.$$, '', 390, 26),
 ('6c0cf6fb-1e64-5095-b4b6-ecf16b6a7ed0'::uuid, 'Side Salad (Basil)', 'Side', $$1) Prep and chop ingredients.
 2) Cook protein/veg, then add aromatics and seasonings.
 3) Simmer or finish until cooked through.
-4) Taste, adjust seasoning, and serve.$$, 'https://picsum.photos/seed/side-side-salad-basil/800/500', 403, 10),
+4) Taste, adjust seasoning, and serve.$$, '', 403, 10),
 ('017ed580-e30a-5e7e-8fb4-33492b92ede8'::uuid, 'Buttered Rice (Parmesan)', 'Side', $$1) Prep and chop ingredients.
 2) Cook protein/veg, then add aromatics and seasonings.
 3) Simmer or finish until cooked through.
-4) Taste, adjust seasoning, and serve.$$, 'https://picsum.photos/seed/side-buttered-rice-parmesan/800/500', 178, 44),
+4) Taste, adjust seasoning, and serve.$$, '', 178, 44),
 ('d8af8860-c8d5-5807-a91d-e5dc20b176c9'::uuid, 'Chickpea Coconut Curry', 'Vegetarian', $$1) Prep and chop ingredients.
 2) Cook protein/veg, then add aromatics and seasonings.
 3) Simmer or finish until cooked through.
-4) Taste, adjust seasoning, and serve.$$, 'https://picsum.photos/seed/vegetarian-chickpea-coconut-curry/800/500', 734, 32),
+4) Taste, adjust seasoning, and serve.$$, '', 734, 32),
 ('3e74bf9d-9695-5b01-8aac-7d98058185f2'::uuid, 'Veggie Stir-Fry (Zesty)', 'Vegetarian', $$1) Prep and chop ingredients.
 2) Cook protein/veg, then add aromatics and seasonings.
 3) Simmer or finish until cooked through.
-4) Taste, adjust seasoning, and serve.$$, 'https://picsum.photos/seed/vegetarian-veggie-stir-fry-zesty/800/500', 743, 56),
+4) Taste, adjust seasoning, and serve.$$, '', 743, 56),
 ('c7684b92-957d-51d1-a0b1-043c9a933a3a'::uuid, 'Hearty Lentil Soup', 'Vegetarian', $$1) Prep and chop ingredients.
 2) Cook protein/veg, then add aromatics and seasonings.
 3) Simmer or finish until cooked through.
-4) Taste, adjust seasoning, and serve.$$, 'https://picsum.photos/seed/vegetarian-hearty-lentil-soup/800/500', 524, 22),
+4) Taste, adjust seasoning, and serve.$$, '', 524, 22),
 ('e79d4e5e-b4e7-59a9-9954-ba1261ab9522'::uuid, 'Black Bean Bowls (Ginger)', 'Vegetarian', $$1) Prep and chop ingredients.
 2) Cook protein/veg, then add aromatics and seasonings.
 3) Simmer or finish until cooked through.
-4) Taste, adjust seasoning, and serve.$$, 'https://picsum.photos/seed/vegetarian-black-bean-bowls-ginger/800/500', 500, 42),
+4) Taste, adjust seasoning, and serve.$$, '', 500, 42),
 ('363c757b-b4d6-5f6d-896e-b532accfbc1e'::uuid, 'Tofu BBQ Stir-Fry', 'Vegetarian', $$1) Prep and chop ingredients.
 2) Cook protein/veg, then add aromatics and seasonings.
 3) Simmer or finish until cooked through.
-4) Taste, adjust seasoning, and serve.$$, 'https://picsum.photos/seed/vegetarian-tofu-bbq-stir-fry/800/500', 430, 44),
+4) Taste, adjust seasoning, and serve.$$, '', 430, 44),
 ('b2b8ba13-ff1e-5c33-8fcf-55af44ac3c2f'::uuid, 'Vegetarian Chili', 'Vegetarian', $$1) Prep and chop ingredients.
 2) Cook protein/veg, then add aromatics and seasonings.
 3) Simmer or finish until cooked through.
-4) Taste, adjust seasoning, and serve.$$, 'https://picsum.photos/seed/vegetarian-vegetarian-chili/800/500', 351, 61),
+4) Taste, adjust seasoning, and serve.$$, '', 351, 61),
 ('1330a946-51ef-5fb9-8606-f197577377b4'::uuid, 'Roasted Veggie Sheet Pan', 'Vegetarian', $$1) Prep and chop ingredients.
 2) Cook protein/veg, then add aromatics and seasonings.
 3) Simmer or finish until cooked through.
-4) Taste, adjust seasoning, and serve.$$, 'https://picsum.photos/seed/vegetarian-roasted-veggie-sheet-pan/800/500', 718, 31),
+4) Taste, adjust seasoning, and serve.$$, '', 718, 31),
 ('1a687bb8-fc57-5ac7-b7eb-03bd1800d54c'::uuid, 'Caprese Salad (Basil)', 'Vegetarian', $$1) Prep and chop ingredients.
 2) Cook protein/veg, then add aromatics and seasonings.
 3) Simmer or finish until cooked through.
-4) Taste, adjust seasoning, and serve.$$, 'https://picsum.photos/seed/vegetarian-caprese-salad-basil/800/500', 606, 63),
+4) Taste, adjust seasoning, and serve.$$, '', 606, 63),
 ('aa29d27e-6068-5ea5-b2ba-5a52ee67a09a'::uuid, 'Veggie Fried Rice', 'Vegetarian', $$1) Prep and chop ingredients.
 2) Cook protein/veg, then add aromatics and seasonings.
 3) Simmer or finish until cooked through.
-4) Taste, adjust seasoning, and serve.$$, 'https://picsum.photos/seed/vegetarian-veggie-fried-rice/800/500', 441, 47),
+4) Taste, adjust seasoning, and serve.$$, '', 441, 47),
 ('ef3185ab-78e1-5c2e-8ed1-8c9df2016fc2'::uuid, 'Stuffed Peppers (Miso)', 'Vegetarian', $$1) Prep and chop ingredients.
 2) Cook protein/veg, then add aromatics and seasonings.
 3) Simmer or finish until cooked through.
-4) Taste, adjust seasoning, and serve.$$, 'https://picsum.photos/seed/vegetarian-stuffed-peppers-miso/800/500', 404, 70),
+4) Taste, adjust seasoning, and serve.$$, '', 404, 70),
 ('fec99184-5e4b-573d-9c9b-34edb5bb2732'::uuid, 'Fluffy Zesty Pancakes', 'Breakfast', $$1) Prep ingredients and measure everything out.
 2) Cook or assemble as directed until set and warmed through.
 3) Season lightly and adjust sweetness or salt to taste.
-4) Serve immediately or chill if desired.$$, 'https://picsum.photos/seed/breakfast-fluffy-zesty-pancakes/800/500', 570, 14),
+4) Serve immediately or chill if desired.$$, '', 570, 14),
 ('93f134ef-df0b-5279-b22e-e279d5d737b6'::uuid, 'Overnight Oats (Sesame)', 'Breakfast', $$1) Prep ingredients and measure everything out.
 2) Cook or assemble as directed until set and warmed through.
 3) Season lightly and adjust sweetness or salt to taste.
-4) Serve immediately or chill if desired.$$, 'https://picsum.photos/seed/breakfast-overnight-oats-sesame/800/500', 577, 21),
+4) Serve immediately or chill if desired.$$, '', 577, 21),
 ('540b4aad-2c28-5db5-ab30-b2de209d7cc0'::uuid, 'Ginger Breakfast Burrito', 'Breakfast', $$1) Prep ingredients and measure everything out.
 2) Cook or assemble as directed until set and warmed through.
 3) Season lightly and adjust sweetness or salt to taste.
-4) Serve immediately or chill if desired.$$, 'https://picsum.photos/seed/breakfast-ginger-breakfast-burrito/800/500', 561, 11),
+4) Serve immediately or chill if desired.$$, '', 561, 11),
 ('e152b51b-187a-51a7-b891-0c0f0b64fc90'::uuid, 'BBQ Yogurt Parfait', 'Breakfast', $$1) Prep ingredients and measure everything out.
 2) Cook or assemble as directed until set and warmed through.
 3) Season lightly and adjust sweetness or salt to taste.
-4) Serve immediately or chill if desired.$$, 'https://picsum.photos/seed/breakfast-bbq-yogurt-parfait/800/500', 328, 16),
+4) Serve immediately or chill if desired.$$, '', 328, 16),
 ('5546b970-f852-5b1b-96c7-bfdb825a8330'::uuid, 'Maple Avocado Toast', 'Breakfast', $$1) Prep ingredients and measure everything out.
 2) Cook or assemble as directed until set and warmed through.
 3) Season lightly and adjust sweetness or salt to taste.
-4) Serve immediately or chill if desired.$$, 'https://picsum.photos/seed/breakfast-maple-avocado-toast/800/500', 640, 10),
+4) Serve immediately or chill if desired.$$, '', 640, 10),
 ('8926e00c-061b-5fe4-853c-79a529a2ffa8'::uuid, 'Baked Egg Cups (Chili)', 'Breakfast', $$1) Prep ingredients and measure everything out.
 2) Cook or assemble as directed until set and warmed through.
 3) Season lightly and adjust sweetness or salt to taste.
-4) Serve immediately or chill if desired.$$, 'https://picsum.photos/seed/breakfast-baked-egg-cups-chili/800/500', 526, 21),
+4) Serve immediately or chill if desired.$$, '', 526, 21),
 ('f6897b89-3037-5065-8ed0-fe235de96584'::uuid, 'French Toast (Basil)', 'Breakfast', $$1) Prep ingredients and measure everything out.
 2) Cook or assemble as directed until set and warmed through.
 3) Season lightly and adjust sweetness or salt to taste.
-4) Serve immediately or chill if desired.$$, 'https://picsum.photos/seed/breakfast-french-toast-basil/800/500', 250, 24),
+4) Serve immediately or chill if desired.$$, '', 250, 24),
 ('0a127797-69be-5039-938d-9b235208b2f3'::uuid, 'Parmesan Breakfast Sandwich', 'Breakfast', $$1) Prep ingredients and measure everything out.
 2) Cook or assemble as directed until set and warmed through.
 3) Season lightly and adjust sweetness or salt to taste.
-4) Serve immediately or chill if desired.$$, 'https://picsum.photos/seed/breakfast-parmesan-breakfast-sandwich/800/500', 415, 20),
+4) Serve immediately or chill if desired.$$, '', 415, 20),
 ('c3ea2d31-7b34-5032-baed-fa71669cb614'::uuid, 'Miso Granola Bowl', 'Breakfast', $$1) Prep ingredients and measure everything out.
 2) Cook or assemble as directed until set and warmed through.
 3) Season lightly and adjust sweetness or salt to taste.
-4) Serve immediately or chill if desired.$$, 'https://picsum.photos/seed/breakfast-miso-granola-bowl/800/500', 259, 8),
+4) Serve immediately or chill if desired.$$, '', 259, 8),
 ('e5ff2a13-cc76-5dd2-bda1-53ed68ee5fd7'::uuid, 'Coconut Smoothie', 'Breakfast', $$1) Prep ingredients and measure everything out.
 2) Cook or assemble as directed until set and warmed through.
 3) Season lightly and adjust sweetness or salt to taste.
-4) Serve immediately or chill if desired.$$, 'https://picsum.photos/seed/breakfast-coconut-smoothie/800/500', 435, 14);
+4) Serve immediately or chill if desired.$$, '', 435, 14);
 
 -- Upsert recipes for the demo user
 WITH demo AS (
@@ -425,8 +425,8 @@ WITH demo AS (
   WHERE email = 'example@gmail.com'
   LIMIT 1
 )
-INSERT INTO recipes (id, user_id, name, category, instructions, thumbnail_url, calories, total_cook_time)
-SELECT s.id, demo.id, s.name, s.category, s.instructions, s.thumbnail_url, s.calories, s.total_cook_time
+INSERT INTO recipes (id, user_id, name, category, instructions, image_key, calories, total_cook_time)
+SELECT s.id, demo.id, s.name, s.category, s.instructions, s.image_key, s.calories, s.total_cook_time
 FROM seed_recipes s
 CROSS JOIN demo
 ON CONFLICT (id) DO UPDATE SET
@@ -434,7 +434,7 @@ ON CONFLICT (id) DO UPDATE SET
   name            = EXCLUDED.name,
   category        = EXCLUDED.category,
   instructions    = EXCLUDED.instructions,
-  thumbnail_url   = EXCLUDED.thumbnail_url,
+  image_key   = EXCLUDED.image_key,
   calories        = EXCLUDED.calories,
   total_cook_time = EXCLUDED.total_cook_time;
 

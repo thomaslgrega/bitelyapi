@@ -12,15 +12,20 @@ import (
 
 type RecipeRepository struct {
 	db *sql.DB
+
+	// images composes the public URL for a Recipe Image. It lives here because
+	// scanning is the one boundary every row crosses on its way to a model, so
+	// no read path can answer a stored key by mistake (ADR-0006).
+	images models.ImageLocator
 }
 
-func NewRecipeRepository(db *sql.DB) *RecipeRepository {
-	return &RecipeRepository{db: db}
+func NewRecipeRepository(db *sql.DB, images models.ImageLocator) *RecipeRepository {
+	return &RecipeRepository{db: db, images: images}
 }
 
 func (r *RecipeRepository) GetRecipesByUserID(ctx context.Context, userID string) ([]models.Recipe, error) {
 	rows, err := r.db.QueryContext(ctx, `
-		SELECT id, name, category, thumbnail_url, calories, total_cook_time
+		SELECT id, name, category, image_key, calories, total_cook_time
 		FROM recipes
 		WHERE user_id = $1
 		ORDER BY created_at DESC
@@ -36,12 +41,13 @@ func (r *RecipeRepository) GetRecipesByUserID(ctx context.Context, userID string
 			&recipe.ID,
 			&recipe.Name,
 			&recipe.Category,
-			&recipe.ThumbnailUrl,
+			&recipe.ImageKey,
 			&recipe.Calories,
 			&recipe.TotalCookTime,
 		); err != nil {
 			return nil, err
 		}
+		recipe.ResolveImage(r.images)
 		recipes = append(recipes, recipe)
 	}
 	if err := rows.Err(); err != nil {
@@ -54,7 +60,7 @@ func (r *RecipeRepository) GetRecipesByUserID(ctx context.Context, userID string
 func (r *RecipeRepository) GetRecipeById(ctx context.Context, id string) (models.Recipe, error) {
 	row := r.db.QueryRowContext(
 		ctx,
-		"SELECT id, user_id, name, category, instructions, thumbnail_url, calories, total_cook_time FROM recipes WHERE id = $1",
+		"SELECT id, user_id, name, category, instructions, image_key, calories, total_cook_time FROM recipes WHERE id = $1",
 		id,
 	)
 
@@ -65,7 +71,7 @@ func (r *RecipeRepository) GetRecipeById(ctx context.Context, id string) (models
 		&recipe.Name,
 		&recipe.Category,
 		&recipe.Instructions,
-		&recipe.ThumbnailUrl,
+		&recipe.ImageKey,
 		&recipe.Calories,
 		&recipe.TotalCookTime,
 	); err != nil {
@@ -94,20 +100,23 @@ func (r *RecipeRepository) GetRecipeById(ctx context.Context, id string) (models
 		return recipe, err
 	}
 
+	recipe.ResolveImage(r.images)
+
 	return recipe, nil
 }
 
 // recipeSummaryColumns is the RecipeSummary projection every browse shares,
 // in the order scanRecipeSummaries reads them.
-const recipeSummaryColumns = "id, name, category, thumbnail_url, calories, total_cook_time"
+const recipeSummaryColumns = "id, name, category, image_key, calories, total_cook_time"
 
-func scanRecipeSummaries(rows *sql.Rows) ([]models.RecipeSummary, error) {
+func scanRecipeSummaries(rows *sql.Rows, images models.ImageLocator) ([]models.RecipeSummary, error) {
 	recipes := make([]models.RecipeSummary, 0)
 	for rows.Next() {
 		var recipe models.RecipeSummary
-		if err := rows.Scan(&recipe.ID, &recipe.Name, &recipe.Category, &recipe.ThumbnailUrl, &recipe.Calories, &recipe.TotalCookTime); err != nil {
+		if err := rows.Scan(&recipe.ID, &recipe.Name, &recipe.Category, &recipe.ImageKey, &recipe.Calories, &recipe.TotalCookTime); err != nil {
 			return nil, err
 		}
+		recipe.ResolveImage(images)
 		recipes = append(recipes, recipe)
 	}
 	if err := rows.Err(); err != nil {
@@ -128,7 +137,7 @@ func (r *RecipeRepository) GetRecipesByCategory(ctx context.Context, category st
 	}
 	defer rows.Close()
 
-	return scanRecipeSummaries(rows)
+	return scanRecipeSummaries(rows, r.images)
 }
 
 // GetRecipeFeed answers the Feed with the Shared Recipes shared most
@@ -145,7 +154,7 @@ func (r *RecipeRepository) GetRecipeFeed(ctx context.Context, limit int) ([]mode
 	}
 	defer rows.Close()
 
-	return scanRecipeSummaries(rows)
+	return scanRecipeSummaries(rows, r.images)
 }
 
 // nameQueryThreshold is how similar a Name Query has to be to some run of
@@ -208,7 +217,7 @@ func (r *RecipeRepository) SearchRecipesByName(ctx context.Context, query string
 	}
 	defer rows.Close()
 
-	recipes, err := scanRecipeSummaries(rows)
+	recipes, err := scanRecipeSummaries(rows, r.images)
 	if err != nil {
 		return nil, err
 	}
@@ -230,10 +239,10 @@ func (r *RecipeRepository) CreateRecipe(ctx context.Context, userID string, inpu
 
 	var recipeID string
 	err = transaction.QueryRowContext(ctx, `
-		INSERT INTO recipes (user_id, name, category, instructions, thumbnail_url, calories, total_cook_time)
+		INSERT INTO recipes (user_id, name, category, instructions, image_key, calories, total_cook_time)
 		VALUES ($1, $2, $3, $4, $5, $6, $7)
 		RETURNING id
-	`, userID, input.Name, input.Category, input.Instructions, input.ThumbnailUrl, input.Calories, input.TotalCookTime).Scan(&recipeID)
+	`, userID, input.Name, input.Category, input.Instructions, input.ImageKey, input.Calories, input.TotalCookTime).Scan(&recipeID)
 	if err != nil {
 		return nil, err
 	}
@@ -261,17 +270,20 @@ func (r *RecipeRepository) CreateRecipe(ctx context.Context, userID string, inpu
 		return nil, err
 	}
 
-	return &models.Recipe{
+	created := &models.Recipe{
 		ID:            recipeID,
 		UserID:        userID,
 		Name:          input.Name,
 		Category:      input.Category,
 		Instructions:  input.Instructions,
-		ThumbnailUrl:  input.ThumbnailUrl,
+		ImageKey:      input.ImageKey,
 		Ingredients:   ingredients,
 		Calories:      input.Calories,
 		TotalCookTime: input.TotalCookTime,
-	}, nil
+	}
+	created.ResolveImage(r.images)
+
+	return created, nil
 }
 
 func (r *RecipeRepository) DeleteRecipe(ctx context.Context, id string, userID string) error {
@@ -302,9 +314,9 @@ func (r *RecipeRepository) UpdateRecipe(ctx context.Context, recipe models.Recip
 
 	result, err := transaction.ExecContext(ctx, `
 		UPDATE recipes
-		SET name = $1, category = $2, instructions = $3, thumbnail_url = $4, calories = $5, total_cook_time = $6
+		SET name = $1, category = $2, instructions = $3, image_key = $4, calories = $5, total_cook_time = $6
 		WHERE id = $7 AND user_id = $8
-	`, recipe.Name, recipe.Category, recipe.Instructions, recipe.ThumbnailUrl, recipe.Calories, recipe.TotalCookTime, recipe.ID, userID)
+	`, recipe.Name, recipe.Category, recipe.Instructions, recipe.ImageKey, recipe.Calories, recipe.TotalCookTime, recipe.ID, userID)
 	if err != nil {
 		return err
 	}
@@ -383,7 +395,7 @@ func (r *RecipeRepository) GetMatchCandidates(ctx context.Context, tokens []stri
 			ORDER BY i.recipe_id
 			LIMIT $2
 		)
-		SELECT r.id, r.name, r.category, r.thumbnail_url, r.calories, r.total_cook_time, i.name
+		SELECT r.id, r.name, r.category, r.image_key, r.calories, r.total_cook_time, i.name
 		FROM candidates c
 		JOIN recipes r ON r.id = c.recipe_id
 		JOIN ingredients i ON i.recipe_id = r.id
@@ -402,7 +414,7 @@ func (r *RecipeRepository) GetMatchCandidates(ctx context.Context, tokens []stri
 			&recipe.ID,
 			&recipe.Name,
 			&recipe.Category,
-			&recipe.ThumbnailUrl,
+			&recipe.ImageKey,
 			&recipe.Calories,
 			&recipe.TotalCookTime,
 			&ingredientName,
@@ -413,6 +425,7 @@ func (r *RecipeRepository) GetMatchCandidates(ctx context.Context, tokens []stri
 		// The join returns one row per Ingredient, ordered by Recipe, so a new
 		// id starts a new candidate.
 		if len(candidates) == 0 || candidates[len(candidates)-1].Recipe.ID != recipe.ID {
+			recipe.ResolveImage(r.images)
 			candidates = append(candidates, models.MatchCandidate{Recipe: recipe})
 		}
 		last := &candidates[len(candidates)-1]
