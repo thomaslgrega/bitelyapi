@@ -52,7 +52,7 @@ Create a `.env` file:
 PORT=8080
 DATABASE_URL=postgres://postgres:password@localhost:5432/bitelyapi?sslmode=disable
 JWT_SECRET=your_secret
-R2_PUBLIC_BASE_URL=https://img.example.com
+R2_PUBLIC_BASE_URL=https://pub-<hash>.r2.dev
 ```
 
 ### 2. Start Postgres
