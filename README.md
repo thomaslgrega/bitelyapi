@@ -78,7 +78,7 @@ API will be available at `http://localhost:8080`.
 
 Build + Run:
 ```bash
-DATABASE_URL="YOUR_DATABASE_URL" JWT_SECRET="YOUR_SECRET" make docker-up
+DATABASE_URL="YOUR_DATABASE_URL" JWT_SECRET="YOUR_SECRET" R2_PUBLIC_BASE_URL="https://pub-<hash>.r2.dev" make docker-up
 ```
 
 Verify:
@@ -103,6 +103,7 @@ Run:
 docker run --rm -p 8080:8080 \
   -e DATABASE_URL="YOUR_DATABASE_URL" \
   -e JWT_SECRET="YOUR_SECRET" \
+  -e R2_PUBLIC_BASE_URL="https://pub-<hash>.r2.dev" \
   bitely-api
 ```
 

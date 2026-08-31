@@ -12,11 +12,13 @@ docker-build:
 docker-run:
 	@if [ -z "$(DATABASE_URL)" ]; then echo "DATABASE_URL is required"; exit 1; fi
 	@if [ -z "$(JWT_SECRET)" ]; then echo "JWT_SECRET is required"; exit 1; fi
+	@if [ -z "$(R2_PUBLIC_BASE_URL)" ]; then echo "R2_PUBLIC_BASE_URL is required"; exit 1; fi
 	docker run --name $(APP_NAME) --rm \
 		-p $(PORT):8080 \
 		-e PORT=8080 \
 		-e DATABASE_URL="$(DATABASE_URL)" \
 		-e JWT_SECRET="$(JWT_SECRET)" \
+		-e R2_PUBLIC_BASE_URL="$(R2_PUBLIC_BASE_URL)" \
 		$(APP_NAME)
 
 docker-up: docker-build docker-run
