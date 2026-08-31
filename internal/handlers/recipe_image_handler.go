@@ -2,6 +2,7 @@ package handlers
 
 import (
 	"context"
+	"database/sql"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -32,9 +33,7 @@ type presignUploadRequest struct {
 	ContentLength int64  `json:"content_length"`
 }
 
-// PresignImageUpload mints one direct-to-R2 upload. It is the only endpoint
-// that hands out write capability into the bucket, which is why it sits behind
-// auth and a per-user rate limit.
+// PresignImageUpload mints one direct-to-R2 upload (ADR-0006).
 func (h *RecipeHandler) PresignImageUpload(w http.ResponseWriter, r *http.Request) {
 	if _, err := middleware.UserIDFromContext(r.Context()); err != nil {
 		http.Error(w, "unauthorized", http.StatusUnauthorized)
@@ -75,17 +74,19 @@ func (h *RecipeHandler) PresignImageUpload(w http.ResponseWriter, r *http.Reques
 }
 
 // promoteImage turns a client's claim ticket into the key a Recipe row holds.
-// The staged object is measured here because R2 has no signing-time size cap,
-// making this the only point anything about the bytes can be enforced
+// The HEAD is the only point anything about the bytes can be enforced
 // (ADR-0006).
 func (h *RecipeHandler) promoteImage(ctx context.Context, stagedKey string, recipeID string) (string, error) {
 	if !models.IsStagedImageKey(stagedKey) {
-		return "", fmt.Errorf("%w: image_key is not a staged upload", errImageRejected)
+		return "", errNotStaged()
 	}
 
 	staged, err := h.images.Head(ctx, stagedKey)
-	if err != nil {
+	if errors.Is(err, models.ErrImageNotFound) {
 		return "", fmt.Errorf("%w: image_key names no upload", errImageRejected)
+	}
+	if err != nil {
+		return "", err
 	}
 	if staged.ContentLength > models.MaxImageBytes {
 		return "", fmt.Errorf("%w: image exceeds %d bytes", errImageRejected, models.MaxImageBytes)
@@ -102,8 +103,12 @@ func (h *RecipeHandler) promoteImage(ctx context.Context, stagedKey string, reci
 	return promoted, nil
 }
 
-// writeImageError answers a client's bad claim ticket with 400 and a bucket
-// failure with 500.
+// errNotStaged is the refusal both write paths give a key the server would not
+// have minted itself.
+func errNotStaged() error {
+	return fmt.Errorf("%w: image_key is not a staged upload", errImageRejected)
+}
+
 func writeImageError(w http.ResponseWriter, err error) {
 	if errors.Is(err, errImageRejected) {
 		http.Error(w, err.Error(), http.StatusBadRequest)
@@ -113,9 +118,23 @@ func writeImageError(w http.ResponseWriter, err error) {
 	http.Error(w, "failed to store image", http.StatusInternalServerError)
 }
 
+// authors reports whether a Recipe is the given user's to change. It answers
+// the same "not found" a foreign Recipe gets elsewhere, so it tells a stranger
+// nothing about what exists.
+func (h *RecipeHandler) authors(ctx context.Context, recipeID string, userID string) error {
+	author, err := h.repo.GetRecipeAuthor(ctx, recipeID)
+	if err != nil {
+		return err
+	}
+	if author != userID {
+		return sql.ErrNoRows
+	}
+
+	return nil
+}
+
 // discardImage drops an object the corpus no longer refers to. Failure is
-// logged and swallowed: the row has already changed, and the request describes
-// the Recipe rather than the bucket (ADR-0006).
+// logged and swallowed, because the Recipe genuinely did change (ADR-0006).
 func (h *RecipeHandler) discardImage(ctx context.Context, key string) {
 	if err := h.images.Delete(ctx, key); err != nil {
 		log.Printf("failed to delete image %q: %v", key, err)

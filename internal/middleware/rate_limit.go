@@ -73,10 +73,9 @@ func (l *userRateLimiter) allow(userID string) bool {
 	return current.count <= l.limit
 }
 
-// sweep drops the windows that have expired, so the map tracks the users
-// currently spending their budget rather than every user ever seen. Once per
-// window is enough: a stale entry costs nothing but memory, and sweeping per
-// request would walk every user on every call.
+// sweep drops expired windows, so the map holds the users currently spending
+// their budget rather than every user ever seen. Sweeping per request would
+// walk every user on every call.
 func (l *userRateLimiter) sweep(now time.Time) {
 	if now.Sub(l.sweptAt) < l.window {
 		return

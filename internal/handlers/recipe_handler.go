@@ -17,6 +17,7 @@ import (
 
 type recipeRepository interface {
 	GetRecipeById(ctx context.Context, id string) (models.Recipe, error)
+	GetRecipeAuthor(ctx context.Context, id string) (string, error)
 	GetRecipesByCategory(ctx context.Context, category string) ([]models.RecipeSummary, error)
 	GetRecipeFeed(ctx context.Context, limit int) ([]models.RecipeSummary, error)
 	SearchRecipesByName(ctx context.Context, query string, category string, limit int) ([]models.RecipeSummary, error)
@@ -165,6 +166,12 @@ func (h *RecipeHandler) CreateRecipe(w http.ResponseWriter, r *http.Request) {
 
 	recipe, err := h.repo.CreateRecipe(r.Context(), userID, recipeID, input)
 	if err != nil {
+		// The promoted key sits outside the staging prefix, where no lifecycle
+		// rule would ever reap it, so a row that never landed takes its object
+		// with it.
+		if stagedKey != "" {
+			h.discardImage(r.Context(), input.ImageKey)
+		}
 		http.Error(w, "failed to create recipe", http.StatusInternalServerError)
 		return
 	}
@@ -231,6 +238,21 @@ func (h *RecipeHandler) UpdateRecipe(w http.ResponseWriter, r *http.Request) {
 
 	stagedKey := recipe.ImageKey
 	if stagedKey != "" {
+		// Shape first, so a malformed key costs no query.
+		if !models.IsStagedImageKey(stagedKey) {
+			writeImageError(w, errNotStaged())
+			return
+		}
+
+		// Promotion overwrites a key derived from the path id, so ownership is
+		// established before the copy rather than by the update that follows
+		// it: otherwise a stranger's legally staged upload replaces the
+		// Author's image and the request 404s afterwards.
+		if err := h.authors(r.Context(), recipe.ID, userID); err != nil {
+			http.Error(w, "recipe not found", http.StatusNotFound)
+			return
+		}
+
 		promoted, err := h.promoteImage(r.Context(), stagedKey, recipe.ID)
 		if err != nil {
 			writeImageError(w, err)

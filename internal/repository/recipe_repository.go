@@ -23,6 +23,19 @@ func NewRecipeRepository(db *sql.DB, images models.ImageLocator) *RecipeReposito
 	return &RecipeRepository{db: db, images: images}
 }
 
+// GetRecipeAuthor answers who may change a Recipe. A Recipe Image is promoted
+// to a key derived from the Recipe id before the row is touched, so the write
+// paths establish ownership before the copy rather than after it.
+func (r *RecipeRepository) GetRecipeAuthor(ctx context.Context, id string) (string, error) {
+	var userID string
+	err := r.db.QueryRowContext(ctx, "SELECT user_id FROM recipes WHERE id = $1", id).Scan(&userID)
+	if err != nil {
+		return "", err
+	}
+
+	return userID, nil
+}
+
 func (r *RecipeRepository) GetRecipesByUserID(ctx context.Context, userID string) ([]models.Recipe, error) {
 	rows, err := r.db.QueryContext(ctx, `
 		SELECT id, name, category, image_key, calories, total_cook_time

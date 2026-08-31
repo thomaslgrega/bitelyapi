@@ -17,9 +17,8 @@ import (
 	"github.com/thomaslgrega/bitelyapi/internal/repository"
 )
 
-// presignsPerHour is how many Recipe Image uploads one user may be handed in
-// an hour. Sharing a Recipe needs one and a retry needs another; far past that
-// is a client bug or someone filling the bucket.
+// presignsPerHour is a user's share of the one endpoint that mints write
+// capability into the bucket. A share needs one and a retry needs another.
 const presignsPerHour = 60
 
 func main() {
@@ -38,8 +37,8 @@ func main() {
 		log.Fatal("R2_PUBLIC_BASE_URL is required")
 	}
 
-	// Credentials missing is fatal for the same reason: the server would boot
-	// and then refuse every Recipe Image it was handed.
+	// Missing credentials are fatal rather than a server that boots and then
+	// refuses every Recipe Image it is handed (ADR-0006).
 	r2Config, err := r2.ConfigFromEnv()
 	if err != nil {
 		log.Fatalf("failed to configure R2: %v", err)

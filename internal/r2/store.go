@@ -36,8 +36,6 @@ type Store struct {
 }
 
 // ConfigFromEnv reads the bucket's credentials, refusing anything missing.
-// Booting without them would give a server that answers every upload with a
-// 500 and every share with a rejected image.
 func ConfigFromEnv() (Config, error) {
 	cfg := Config{
 		AccountID:       os.Getenv("R2_ACCOUNT_ID"),
@@ -125,7 +123,7 @@ func (s *Store) Head(ctx context.Context, key string) (models.StagedImage, error
 		Key:    aws.String(key),
 	})
 	if err != nil {
-		return models.StagedImage{}, err
+		return models.StagedImage{}, asStoreError(err)
 	}
 
 	staged := models.StagedImage{}
@@ -139,8 +137,8 @@ func (s *Store) Head(ctx context.Context, key string) (models.StagedImage, error
 	return staged, nil
 }
 
-// Promote copies a staged object to the key the server derived for it. The
-// copy is server-side: the bytes never reach this process.
+// Promote copies a staged object to the key the server derived for it,
+// server-side: the bytes never reach this process.
 func (s *Store) Promote(ctx context.Context, stagedKey string, key string) error {
 	if stagedKey == "" || key == "" {
 		return errors.New("promote needs both a source and a destination key")
