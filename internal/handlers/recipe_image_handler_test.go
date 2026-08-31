@@ -346,13 +346,13 @@ func TestUpdateRecipeImage(t *testing.T) {
 		store := &fakeImageStore{}
 		var updated models.Recipe
 		repo := fakeRecipeRepo{
-			getStoredImageFunc: func(ctx context.Context, id string) (models.StoredImage, error) {
-				return models.StoredImage{Author: "user-1", Key: "recipes/recipe-1/live.jpg"}, nil
+			getRecipeAuthorFunc: func(ctx context.Context, id string) (string, error) {
+				return "user-1", nil
 			},
-			updateRecipeFunc: func(ctx context.Context, recipe models.Recipe, userID string) error {
+			updateRecipeFunc: func(ctx context.Context, recipe models.Recipe, userID string) (string, error) {
 				store.calls = append(store.calls, "update")
 				updated = recipe
-				return nil
+				return "recipes/recipe-1/live.jpg", nil
 			},
 		}
 		h := NewRecipeHandler(repo, store)
@@ -374,8 +374,35 @@ func TestUpdateRecipeImage(t *testing.T) {
 		if updated.ImageKey == "recipes/recipe-1/live.jpg" {
 			t.Fatal("expected the replacement to land beside the live object, not on it")
 		}
+		// The superseded key is whatever the update reports it replaced, so a
+		// write that landed in between is the one this cleans up after.
 		if want := []string{stagedTestKey, "recipes/recipe-1/live.jpg"}; !reflect.DeepEqual(store.deletedKeys, want) {
 			t.Fatalf("expected the staged and superseded objects cleaned up, got %v", store.deletedKeys)
+		}
+	})
+
+	t.Run("discards the promoted object when the row is gone", func(t *testing.T) {
+		// The Recipe can be deleted between the authorship check and the
+		// update, and the promoted key sits outside the staging prefix where
+		// no lifecycle rule would reach it.
+		store := &fakeImageStore{}
+		repo := fakeRecipeRepo{
+			updateRecipeFunc: func(ctx context.Context, recipe models.Recipe, userID string) (string, error) {
+				return "", sql.ErrNoRows
+			},
+		}
+		h := NewRecipeHandler(repo, store)
+
+		body := `{"name":"Shakshuka","category":"dinner","image_key":"` + stagedTestKey + `"}`
+		req := httptest.NewRequest(http.MethodPut, "/recipes/recipe-1", bytes.NewBufferString(body))
+		req.SetPathValue("id", "recipe-1")
+		rec := authedRequest(t, req, h.UpdateRecipe)
+
+		if rec.Code != http.StatusNotFound {
+			t.Fatalf("expected status %d, got %d", http.StatusNotFound, rec.Code)
+		}
+		if len(store.deletedKeys) != 1 || store.deletedKeys[0] != store.promotedTo {
+			t.Fatalf("expected the promoted orphan to be dropped, got %v", store.deletedKeys)
 		}
 	})
 
@@ -385,11 +412,11 @@ func TestUpdateRecipeImage(t *testing.T) {
 		// prefix, so nothing else would reap it.
 		store := &fakeImageStore{}
 		repo := fakeRecipeRepo{
-			getStoredImageFunc: func(ctx context.Context, id string) (models.StoredImage, error) {
-				return models.StoredImage{Author: "user-1", Key: "recipes/recipe-1/live.jpg"}, nil
+			getRecipeAuthorFunc: func(ctx context.Context, id string) (string, error) {
+				return "user-1", nil
 			},
-			updateRecipeFunc: func(ctx context.Context, recipe models.Recipe, userID string) error {
-				return errors.New("commit failed")
+			updateRecipeFunc: func(ctx context.Context, recipe models.Recipe, userID string) (string, error) {
+				return "", errors.New("commit failed")
 			},
 		}
 		h := NewRecipeHandler(repo, store)
@@ -415,8 +442,8 @@ func TestUpdateRecipeImage(t *testing.T) {
 	t.Run("reports a lookup failure as a server error", func(t *testing.T) {
 		store := &fakeImageStore{}
 		repo := fakeRecipeRepo{
-			getStoredImageFunc: func(ctx context.Context, id string) (models.StoredImage, error) {
-				return models.StoredImage{}, errors.New("the database is down")
+			getRecipeAuthorFunc: func(ctx context.Context, id string) (string, error) {
+				return "", errors.New("the database is down")
 			},
 		}
 		h := NewRecipeHandler(repo, store)
@@ -437,12 +464,12 @@ func TestUpdateRecipeImage(t *testing.T) {
 	t.Run("deletes the superseded object when the recipe keeps no image", func(t *testing.T) {
 		store := &fakeImageStore{}
 		repo := fakeRecipeRepo{
-			getStoredImageFunc: func(ctx context.Context, id string) (models.StoredImage, error) {
-				return models.StoredImage{Author: "user-1", Key: "recipes/recipe-1/live.jpg"}, nil
+			getRecipeAuthorFunc: func(ctx context.Context, id string) (string, error) {
+				return "user-1", nil
 			},
-			updateRecipeFunc: func(ctx context.Context, recipe models.Recipe, userID string) error {
+			updateRecipeFunc: func(ctx context.Context, recipe models.Recipe, userID string) (string, error) {
 				store.calls = append(store.calls, "update")
-				return nil
+				return "recipes/recipe-1/live.jpg", nil
 			},
 		}
 		h := NewRecipeHandler(repo, store)
@@ -469,11 +496,11 @@ func TestUpdateRecipeImage(t *testing.T) {
 			},
 		}
 		repo := fakeRecipeRepo{
-			getStoredImageFunc: func(ctx context.Context, id string) (models.StoredImage, error) {
-				return models.StoredImage{Author: "user-1", Key: "recipes/recipe-1/live.jpg"}, nil
+			getRecipeAuthorFunc: func(ctx context.Context, id string) (string, error) {
+				return "user-1", nil
 			},
-			updateRecipeFunc: func(ctx context.Context, recipe models.Recipe, userID string) error {
-				return nil
+			updateRecipeFunc: func(ctx context.Context, recipe models.Recipe, userID string) (string, error) {
+				return "recipes/recipe-1/live.jpg", nil
 			},
 		}
 		h := NewRecipeHandler(repo, store)
@@ -493,12 +520,12 @@ func TestUpdateRecipeImage(t *testing.T) {
 		// object with a legally staged upload of their own.
 		store := &fakeImageStore{}
 		repo := fakeRecipeRepo{
-			getStoredImageFunc: func(ctx context.Context, id string) (models.StoredImage, error) {
-				return models.StoredImage{Author: "user-2"}, nil
+			getRecipeAuthorFunc: func(ctx context.Context, id string) (string, error) {
+				return "user-2", nil
 			},
-			updateRecipeFunc: func(ctx context.Context, recipe models.Recipe, userID string) error {
+			updateRecipeFunc: func(ctx context.Context, recipe models.Recipe, userID string) (string, error) {
 				t.Fatal("expected no update")
-				return nil
+				return "", nil
 			},
 		}
 		h := NewRecipeHandler(repo, store)
@@ -519,8 +546,8 @@ func TestUpdateRecipeImage(t *testing.T) {
 	t.Run("promotes nothing into a recipe that does not exist", func(t *testing.T) {
 		store := &fakeImageStore{}
 		repo := fakeRecipeRepo{
-			getStoredImageFunc: func(ctx context.Context, id string) (models.StoredImage, error) {
-				return models.StoredImage{}, sql.ErrNoRows
+			getRecipeAuthorFunc: func(ctx context.Context, id string) (string, error) {
+				return "", sql.ErrNoRows
 			},
 		}
 		h := NewRecipeHandler(repo, store)
@@ -541,9 +568,9 @@ func TestUpdateRecipeImage(t *testing.T) {
 	t.Run("refuses a key failing shape validation without touching the store", func(t *testing.T) {
 		store := &fakeImageStore{}
 		repo := fakeRecipeRepo{
-			updateRecipeFunc: func(ctx context.Context, recipe models.Recipe, userID string) error {
+			updateRecipeFunc: func(ctx context.Context, recipe models.Recipe, userID string) (string, error) {
 				t.Fatal("expected no update")
-				return nil
+				return "", nil
 			},
 		}
 		h := NewRecipeHandler(repo, store)
@@ -566,12 +593,9 @@ func TestDeleteRecipeDeletesTheImage(t *testing.T) {
 	t.Run("deletes the object once the row is gone", func(t *testing.T) {
 		store := &fakeImageStore{}
 		repo := fakeRecipeRepo{
-			getStoredImageFunc: func(ctx context.Context, id string) (models.StoredImage, error) {
-				return models.StoredImage{Author: "user-1", Key: "recipes/recipe-1/live.jpg"}, nil
-			},
-			deleteRecipeFunc: func(ctx context.Context, id string, userID string) error {
+			deleteRecipeFunc: func(ctx context.Context, id string, userID string) (string, error) {
 				store.calls = append(store.calls, "delete-row")
-				return nil
+				return "recipes/recipe-1/live.jpg", nil
 			},
 		}
 		h := NewRecipeHandler(repo, store)
@@ -598,11 +622,8 @@ func TestDeleteRecipeDeletesTheImage(t *testing.T) {
 			},
 		}
 		repo := fakeRecipeRepo{
-			getStoredImageFunc: func(ctx context.Context, id string) (models.StoredImage, error) {
-				return models.StoredImage{Author: "user-1", Key: "recipes/recipe-1/live.jpg"}, nil
-			},
-			deleteRecipeFunc: func(ctx context.Context, id string, userID string) error {
-				return nil
+			deleteRecipeFunc: func(ctx context.Context, id string, userID string) (string, error) {
+				return "recipes/recipe-1/live.jpg", nil
 			},
 		}
 		h := NewRecipeHandler(repo, store)

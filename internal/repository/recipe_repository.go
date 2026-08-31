@@ -23,18 +23,16 @@ func NewRecipeRepository(db *sql.DB, images models.ImageLocator) *RecipeReposito
 	return &RecipeRepository{db: db, images: images}
 }
 
-// GetStoredImage answers who authored a Recipe and which object it names. The
-// write paths read it before touching the bucket: a promoted key is unique per
-// upload, so nothing but the row records which object is live (ADR-0006).
-func (r *RecipeRepository) GetStoredImage(ctx context.Context, id string) (models.StoredImage, error) {
-	var stored models.StoredImage
-	err := r.db.QueryRowContext(ctx, "SELECT user_id, image_key FROM recipes WHERE id = $1", id).
-		Scan(&stored.Author, &stored.Key)
-	if err != nil {
-		return models.StoredImage{}, err
+// GetRecipeAuthor answers who authored a Recipe. An update reads it before
+// promoting an image, because the promoted key derives from the Recipe id and
+// a stranger must not reach it at all (ADR-0006).
+func (r *RecipeRepository) GetRecipeAuthor(ctx context.Context, id string) (string, error) {
+	var author string
+	if err := r.db.QueryRowContext(ctx, "SELECT user_id FROM recipes WHERE id = $1", id).Scan(&author); err != nil {
+		return "", err
 	}
 
-	return stored, nil
+	return author, nil
 }
 
 func (r *RecipeRepository) GetRecipesByUserID(ctx context.Context, userID string) ([]models.Recipe, error) {
@@ -301,52 +299,51 @@ func (r *RecipeRepository) CreateRecipe(ctx context.Context, userID string, reci
 	return created, nil
 }
 
-func (r *RecipeRepository) DeleteRecipe(ctx context.Context, id string, userID string) error {
-	result, err := r.db.ExecContext(ctx, "DELETE FROM recipes WHERE id = $1 AND user_id = $2", id, userID)
+// DeleteRecipe removes a Recipe and answers the image key its row held. The
+// key comes back from the delete itself rather than from a read before it, so
+// an image written in between is the one the caller discards (ADR-0006).
+func (r *RecipeRepository) DeleteRecipe(ctx context.Context, id string, userID string) (string, error) {
+	var deleted string
+	err := r.db.QueryRowContext(
+		ctx,
+		"DELETE FROM recipes WHERE id = $1 AND user_id = $2 RETURNING image_key",
+		id, userID,
+	).Scan(&deleted)
 	if err != nil {
-		return err
+		return "", err
 	}
 
-	rowsAffected, err := result.RowsAffected()
-	if err != nil {
-		return err
-	}
-
-	if rowsAffected == 0 {
-		return sql.ErrNoRows
-	}
-
-	return nil
+	return deleted, nil
 }
 
-func (r *RecipeRepository) UpdateRecipe(ctx context.Context, recipe models.Recipe, userID string) error {
+// UpdateRecipe writes a Recipe and answers the image key its row stopped
+// naming. The prior key is read under the update's own lock rather than by the
+// caller beforehand, so two writes racing to replace the same image each
+// discard the one they actually superseded (ADR-0006).
+func (r *RecipeRepository) UpdateRecipe(ctx context.Context, recipe models.Recipe, userID string) (string, error) {
 	transaction, err := r.db.BeginTx(ctx, nil)
 	if err != nil {
-		return err
+		return "", err
 	}
 
 	defer transaction.Rollback()
 
-	result, err := transaction.ExecContext(ctx, `
+	var superseded string
+	err = transaction.QueryRowContext(ctx, `
 		UPDATE recipes
 		SET name = $1, category = $2, instructions = $3, image_key = $4, calories = $5, total_cook_time = $6
-		WHERE id = $7 AND user_id = $8
-	`, recipe.Name, recipe.Category, recipe.Instructions, recipe.ImageKey, recipe.Calories, recipe.TotalCookTime, recipe.ID, userID)
+		FROM (SELECT id, image_key FROM recipes WHERE id = $7 AND user_id = $8 FOR UPDATE) prior
+		WHERE recipes.id = prior.id
+		RETURNING prior.image_key
+	`, recipe.Name, recipe.Category, recipe.Instructions, recipe.ImageKey, recipe.Calories, recipe.TotalCookTime, recipe.ID, userID).
+		Scan(&superseded)
 	if err != nil {
-		return err
-	}
-
-	rowsAffected, err := result.RowsAffected()
-	if err != nil {
-		return err
-	}
-	if rowsAffected == 0 {
-		return sql.ErrNoRows
+		return "", err
 	}
 
 	_, err = transaction.ExecContext(ctx, "DELETE FROM ingredients WHERE recipe_id = $1", recipe.ID)
 	if err != nil {
-		return err
+		return "", err
 	}
 
 	for _, ingredient := range recipe.Ingredients {
@@ -356,15 +353,15 @@ func (r *RecipeRepository) UpdateRecipe(ctx context.Context, recipe models.Recip
 		`, ingredient.ID, recipe.ID, ingredient.Name, ingredient.Measurement)
 
 		if err != nil {
-			return err
+			return "", err
 		}
 	}
 
 	if err := transaction.Commit(); err != nil {
-		return err
+		return "", err
 	}
 
-	return nil
+	return superseded, nil
 }
 
 // narrowingThreshold is how similar an Ingredient name has to be to a pantry

@@ -122,19 +122,19 @@ func writeImageError(w http.ResponseWriter, err error) {
 	http.Error(w, "failed to store image", http.StatusInternalServerError)
 }
 
-// storedImageOf reads what a Recipe holds, refusing anyone but its Author. A
-// Recipe written by someone else answers the same "not found" a missing one
-// does, so it tells a stranger nothing about what exists.
-func (h *RecipeHandler) storedImageOf(ctx context.Context, recipeID string, userID string) (models.StoredImage, error) {
-	stored, err := h.repo.GetStoredImage(ctx, recipeID)
+// authorizeRecipe refuses anyone but a Recipe's Author. A Recipe written by
+// someone else answers the same "not found" a missing one does, so it tells a
+// stranger nothing about what exists.
+func (h *RecipeHandler) authorizeRecipe(ctx context.Context, recipeID string, userID string) error {
+	author, err := h.repo.GetRecipeAuthor(ctx, recipeID)
 	if err != nil {
-		return models.StoredImage{}, err
+		return err
 	}
-	if stored.Author != userID {
-		return models.StoredImage{}, sql.ErrNoRows
+	if author != userID {
+		return sql.ErrNoRows
 	}
 
-	return stored, nil
+	return nil
 }
 
 // writeRecipeLookupError keeps a database that could not answer distinct from

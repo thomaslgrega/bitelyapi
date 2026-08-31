@@ -17,14 +17,14 @@ import (
 
 type recipeRepository interface {
 	GetRecipeById(ctx context.Context, id string) (models.Recipe, error)
-	GetStoredImage(ctx context.Context, id string) (models.StoredImage, error)
+	GetRecipeAuthor(ctx context.Context, id string) (string, error)
 	GetRecipesByCategory(ctx context.Context, category string) ([]models.RecipeSummary, error)
 	GetRecipeFeed(ctx context.Context, limit int) ([]models.RecipeSummary, error)
 	SearchRecipesByName(ctx context.Context, query string, category string, limit int) ([]models.RecipeSummary, error)
 	GetRecipesByUserID(ctx context.Context, userID string) ([]models.Recipe, error)
 	CreateRecipe(ctx context.Context, userID string, recipeID string, input models.CreateRecipeInput) (*models.Recipe, error)
-	DeleteRecipe(ctx context.Context, id string, userID string) error
-	UpdateRecipe(ctx context.Context, recipe models.Recipe, userID string) error
+	DeleteRecipe(ctx context.Context, id string, userID string) (string, error)
+	UpdateRecipe(ctx context.Context, recipe models.Recipe, userID string) (string, error)
 	GetMatchCandidates(ctx context.Context, tokens []string, limit int) ([]models.MatchCandidate, error)
 }
 type RecipeHandler struct {
@@ -198,15 +198,9 @@ func (h *RecipeHandler) DeleteRecipe(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// The object is read before the row goes, because a promoted key is unique
-	// per upload and the row is the only record of which one is live.
-	stored, err := h.storedImageOf(r.Context(), id, userID)
-	if err != nil {
-		writeRecipeLookupError(w, err)
-		return
-	}
-
-	err = h.repo.DeleteRecipe(r.Context(), id, userID)
+	// The delete names the object the row held, rather than a read before it
+	// naming one a concurrent write may already have replaced.
+	deleted, err := h.repo.DeleteRecipe(r.Context(), id, userID)
 	if errors.Is(err, sql.ErrNoRows) {
 		http.Error(w, "recipe not found", http.StatusNotFound)
 		return
@@ -217,8 +211,8 @@ func (h *RecipeHandler) DeleteRecipe(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if stored.Key != "" {
-		h.discardImage(r.Context(), stored.Key)
+	if deleted != "" {
+		h.discardImage(r.Context(), deleted)
 	}
 
 	w.WriteHeader(http.StatusNoContent)
@@ -255,10 +249,8 @@ func (h *RecipeHandler) UpdateRecipe(w http.ResponseWriter, r *http.Request) {
 
 	// Authorship is established before the copy rather than by the update that
 	// follows it, so a stranger's legally staged upload cannot reach the
-	// Author's Recipe at all. The read also names the object this update
-	// supersedes, which only the row records.
-	stored, err := h.storedImageOf(r.Context(), recipe.ID, userID)
-	if err != nil {
+	// Author's Recipe at all.
+	if err := h.authorizeRecipe(r.Context(), recipe.ID, userID); err != nil {
 		writeRecipeLookupError(w, err)
 		return
 	}
@@ -272,18 +264,18 @@ func (h *RecipeHandler) UpdateRecipe(w http.ResponseWriter, r *http.Request) {
 		recipe.ImageKey = promoted
 	}
 
-	err = h.repo.UpdateRecipe(r.Context(), recipe, userID)
-	if errors.Is(err, sql.ErrNoRows) {
-		http.Error(w, "recipe not found", http.StatusNotFound)
-		return
-	}
-
+	superseded, err := h.repo.UpdateRecipe(r.Context(), recipe, userID)
 	if err != nil {
 		// The promotion landed on its own key, so the Recipe Image is still
-		// whatever the row says. What the copy left behind sits outside the
-		// staging prefix, where no lifecycle rule would reach it.
+		// whatever the row says — and if the row is gone, the copy belongs to
+		// nothing. Either way it sits outside the staging prefix, where no
+		// lifecycle rule would reach it.
 		if recipe.ImageKey != "" {
 			h.discardImage(r.Context(), recipe.ImageKey)
+		}
+		if errors.Is(err, sql.ErrNoRows) {
+			http.Error(w, "recipe not found", http.StatusNotFound)
+			return
 		}
 		http.Error(w, "failed to update recipe", http.StatusInternalServerError)
 		return
@@ -293,11 +285,12 @@ func (h *RecipeHandler) UpdateRecipe(w http.ResponseWriter, r *http.Request) {
 		h.discardImage(r.Context(), stagedKey)
 	}
 
-	// The row now names the new object, so the one it named before is
-	// superseded — including when the update leaves the Recipe with no image
-	// at all.
-	if stored.Key != "" && stored.Key != recipe.ImageKey {
-		h.discardImage(r.Context(), stored.Key)
+	// The update reports the object the row stopped naming — read inside its
+	// own transaction, so a write that landed since the authorship check is
+	// the one this cleans up after. It supersedes the new key including when
+	// the update leaves the Recipe with no image at all.
+	if superseded != "" && superseded != recipe.ImageKey {
+		h.discardImage(r.Context(), superseded)
 	}
 
 	w.WriteHeader(http.StatusNoContent)

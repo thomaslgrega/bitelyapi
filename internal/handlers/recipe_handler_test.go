@@ -17,12 +17,12 @@ import (
 
 type fakeRecipeRepo struct {
 	getRecipeByIDFunc        func(ctx context.Context, id string) (models.Recipe, error)
-	getStoredImageFunc       func(ctx context.Context, id string) (models.StoredImage, error)
+	getRecipeAuthorFunc      func(ctx context.Context, id string) (string, error)
 	getRecipesByCategoryFunc func(ctx context.Context, category string) ([]models.RecipeSummary, error)
 	getRecipesByUserIDFunc   func(ctx context.Context, userID string) ([]models.Recipe, error)
 	createRecipeFunc         func(ctx context.Context, userID string, recipeID string, input models.CreateRecipeInput) (*models.Recipe, error)
-	deleteRecipeFunc         func(ctx context.Context, id string, userID string) error
-	updateRecipeFunc         func(ctx context.Context, recipe models.Recipe, userID string) error
+	deleteRecipeFunc         func(ctx context.Context, id string, userID string) (string, error)
+	updateRecipeFunc         func(ctx context.Context, recipe models.Recipe, userID string) (string, error)
 	getMatchCandidatesFunc   func(ctx context.Context, tokens []string, limit int) ([]models.MatchCandidate, error)
 	searchRecipesByNameFunc  func(ctx context.Context, query string, category string, limit int) ([]models.RecipeSummary, error)
 	getRecipeFeedFunc        func(ctx context.Context, limit int) ([]models.RecipeSummary, error)
@@ -32,14 +32,14 @@ func (f fakeRecipeRepo) GetRecipeById(ctx context.Context, id string) (models.Re
 	return f.getRecipeByIDFunc(ctx, id)
 }
 
-// GetStoredImage answers an imageless Recipe authored by the test token's
-// user, so a case about the row rather than the image needs no image fixture.
-func (f fakeRecipeRepo) GetStoredImage(ctx context.Context, id string) (models.StoredImage, error) {
-	if f.getStoredImageFunc == nil {
-		return models.StoredImage{Author: "user-1"}, nil
+// GetRecipeAuthor answers the test token's user, so a case about the row
+// rather than about authorship needs no fixture.
+func (f fakeRecipeRepo) GetRecipeAuthor(ctx context.Context, id string) (string, error) {
+	if f.getRecipeAuthorFunc == nil {
+		return "user-1", nil
 	}
 
-	return f.getStoredImageFunc(ctx, id)
+	return f.getRecipeAuthorFunc(ctx, id)
 }
 
 func (f fakeRecipeRepo) GetRecipesByCategory(ctx context.Context, category string) ([]models.RecipeSummary, error) {
@@ -54,11 +54,11 @@ func (f fakeRecipeRepo) CreateRecipe(ctx context.Context, userID string, recipeI
 	return f.createRecipeFunc(ctx, userID, recipeID, input)
 }
 
-func (f fakeRecipeRepo) DeleteRecipe(ctx context.Context, id string, userID string) error {
+func (f fakeRecipeRepo) DeleteRecipe(ctx context.Context, id string, userID string) (string, error) {
 	return f.deleteRecipeFunc(ctx, id, userID)
 }
 
-func (f fakeRecipeRepo) UpdateRecipe(ctx context.Context, recipe models.Recipe, userID string) error {
+func (f fakeRecipeRepo) UpdateRecipe(ctx context.Context, recipe models.Recipe, userID string) (string, error) {
 	return f.updateRecipeFunc(ctx, recipe, userID)
 }
 
@@ -477,8 +477,8 @@ func TestRecipeHandlerCreateRecipe(t *testing.T) {
 func TestRecipeHandlerDeleteRecipe(t *testing.T) {
 	t.Run("maps missing rows to not found", func(t *testing.T) {
 		h := newTestRecipeHandler(fakeRecipeRepo{
-			deleteRecipeFunc: func(ctx context.Context, id string, userID string) error {
-				return sql.ErrNoRows
+			deleteRecipeFunc: func(ctx context.Context, id string, userID string) (string, error) {
+				return "", sql.ErrNoRows
 			},
 		})
 		req := httptest.NewRequest(http.MethodDelete, "/recipes/recipe-1", nil)
@@ -492,11 +492,11 @@ func TestRecipeHandlerDeleteRecipe(t *testing.T) {
 
 	t.Run("returns no content on success", func(t *testing.T) {
 		h := newTestRecipeHandler(fakeRecipeRepo{
-			deleteRecipeFunc: func(ctx context.Context, id string, userID string) error {
+			deleteRecipeFunc: func(ctx context.Context, id string, userID string) (string, error) {
 				if id != "recipe-1" || userID != "user-1" {
 					t.Fatalf("unexpected delete args id=%q userID=%q", id, userID)
 				}
-				return nil
+				return "", nil
 			},
 		})
 		req := httptest.NewRequest(http.MethodDelete, "/recipes/recipe-1", nil)
@@ -522,14 +522,14 @@ func TestRecipeHandlerUpdateRecipe(t *testing.T) {
 
 	t.Run("path id overrides body id", func(t *testing.T) {
 		h := newTestRecipeHandler(fakeRecipeRepo{
-			updateRecipeFunc: func(ctx context.Context, recipe models.Recipe, userID string) error {
+			updateRecipeFunc: func(ctx context.Context, recipe models.Recipe, userID string) (string, error) {
 				if recipe.ID != "recipe-from-path" {
 					t.Fatalf("expected path id to win, got %q", recipe.ID)
 				}
 				if userID != "user-1" {
 					t.Fatalf("expected user-1, got %q", userID)
 				}
-				return nil
+				return "", nil
 			},
 		})
 		req := httptest.NewRequest(http.MethodPut, "/recipes/recipe-from-path", bytes.NewBufferString(`{"id":"recipe-from-body","name":"Soup","category":"dinner"}`))
@@ -543,8 +543,8 @@ func TestRecipeHandlerUpdateRecipe(t *testing.T) {
 
 	t.Run("maps missing rows to not found", func(t *testing.T) {
 		h := newTestRecipeHandler(fakeRecipeRepo{
-			updateRecipeFunc: func(ctx context.Context, recipe models.Recipe, userID string) error {
-				return sql.ErrNoRows
+			updateRecipeFunc: func(ctx context.Context, recipe models.Recipe, userID string) (string, error) {
+				return "", sql.ErrNoRows
 			},
 		})
 		req := httptest.NewRequest(http.MethodPut, "/recipes/recipe-1", bytes.NewBufferString(`{"name":"Soup","category":"dinner"}`))
@@ -659,14 +659,14 @@ func TestRecipeHandlerCreateRecipeTrimsNames(t *testing.T) {
 func TestRecipeHandlerUpdateRecipeTrimsNames(t *testing.T) {
 	t.Run("trims recipe and ingredient names before storing", func(t *testing.T) {
 		h := newTestRecipeHandler(fakeRecipeRepo{
-			updateRecipeFunc: func(ctx context.Context, recipe models.Recipe, userID string) error {
+			updateRecipeFunc: func(ctx context.Context, recipe models.Recipe, userID string) (string, error) {
 				if recipe.Name != "Chicken Dinner" {
 					t.Fatalf("expected trimmed recipe name, got %q", recipe.Name)
 				}
 				if len(recipe.Ingredients) != 1 || recipe.Ingredients[0].Name != "Chicken Breast" {
 					t.Fatalf("expected trimmed ingredient name, got %#v", recipe.Ingredients)
 				}
-				return nil
+				return "", nil
 			},
 		})
 

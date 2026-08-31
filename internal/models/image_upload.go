@@ -18,14 +18,6 @@ type PresignedUpload struct {
 	ExpiresAt time.Time `json:"expires_at"`
 }
 
-// StoredImage is what a Recipe row currently says about its image: the Author
-// who may replace it, and the object it names. A promoted key is unique per
-// upload, so the row is the only place the live object is recorded.
-type StoredImage struct {
-	Author string
-	Key    string
-}
-
 // StagedImage is what an uploaded object turned out to be, as opposed to what
 // the client declared when the upload was signed (ADR-0006).
 type StagedImage struct {
