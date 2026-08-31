@@ -229,7 +229,10 @@ func (r *RecipeRepository) SearchRecipesByName(ctx context.Context, query string
 	return recipes, nil
 }
 
-func (r *RecipeRepository) CreateRecipe(ctx context.Context, userID string, input models.CreateRecipeInput) (*models.Recipe, error) {
+// CreateRecipe writes a Recipe under an id the caller minted. The id arrives
+// rather than being defaulted by Postgres because a Recipe Image is promoted
+// to a key derived from it before the row exists (ADR-0006).
+func (r *RecipeRepository) CreateRecipe(ctx context.Context, userID string, recipeID string, input models.CreateRecipeInput) (*models.Recipe, error) {
 	transaction, err := r.db.BeginTx(ctx, nil)
 	if err != nil {
 		return nil, err
@@ -237,12 +240,10 @@ func (r *RecipeRepository) CreateRecipe(ctx context.Context, userID string, inpu
 
 	defer transaction.Rollback()
 
-	var recipeID string
-	err = transaction.QueryRowContext(ctx, `
-		INSERT INTO recipes (user_id, name, category, instructions, image_key, calories, total_cook_time)
-		VALUES ($1, $2, $3, $4, $5, $6, $7)
-		RETURNING id
-	`, userID, input.Name, input.Category, input.Instructions, input.ImageKey, input.Calories, input.TotalCookTime).Scan(&recipeID)
+	_, err = transaction.ExecContext(ctx, `
+		INSERT INTO recipes (id, user_id, name, category, instructions, image_key, calories, total_cook_time)
+		VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+	`, recipeID, userID, input.Name, input.Category, input.Instructions, input.ImageKey, input.Calories, input.TotalCookTime)
 	if err != nil {
 		return nil, err
 	}

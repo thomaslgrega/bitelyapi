@@ -19,7 +19,7 @@ type fakeRecipeRepo struct {
 	getRecipeByIDFunc        func(ctx context.Context, id string) (models.Recipe, error)
 	getRecipesByCategoryFunc func(ctx context.Context, category string) ([]models.RecipeSummary, error)
 	getRecipesByUserIDFunc   func(ctx context.Context, userID string) ([]models.Recipe, error)
-	createRecipeFunc         func(ctx context.Context, userID string, input models.CreateRecipeInput) (*models.Recipe, error)
+	createRecipeFunc         func(ctx context.Context, userID string, recipeID string, input models.CreateRecipeInput) (*models.Recipe, error)
 	deleteRecipeFunc         func(ctx context.Context, id string, userID string) error
 	updateRecipeFunc         func(ctx context.Context, recipe models.Recipe, userID string) error
 	getMatchCandidatesFunc   func(ctx context.Context, tokens []string, limit int) ([]models.MatchCandidate, error)
@@ -39,8 +39,8 @@ func (f fakeRecipeRepo) GetRecipesByUserID(ctx context.Context, userID string) (
 	return f.getRecipesByUserIDFunc(ctx, userID)
 }
 
-func (f fakeRecipeRepo) CreateRecipe(ctx context.Context, userID string, input models.CreateRecipeInput) (*models.Recipe, error) {
-	return f.createRecipeFunc(ctx, userID, input)
+func (f fakeRecipeRepo) CreateRecipe(ctx context.Context, userID string, recipeID string, input models.CreateRecipeInput) (*models.Recipe, error) {
+	return f.createRecipeFunc(ctx, userID, recipeID, input)
 }
 
 func (f fakeRecipeRepo) DeleteRecipe(ctx context.Context, id string, userID string) error {
@@ -65,7 +65,7 @@ func (f fakeRecipeRepo) GetMatchCandidates(ctx context.Context, tokens []string,
 
 func TestRecipeHandlerGetRecipeByID(t *testing.T) {
 	t.Run("requires id", func(t *testing.T) {
-		h := NewRecipeHandler(fakeRecipeRepo{})
+		h := newTestRecipeHandler(fakeRecipeRepo{})
 		req := httptest.NewRequest(http.MethodGet, "/recipes/", nil)
 		rec := httptest.NewRecorder()
 
@@ -77,7 +77,7 @@ func TestRecipeHandlerGetRecipeByID(t *testing.T) {
 	})
 
 	t.Run("returns not found", func(t *testing.T) {
-		h := NewRecipeHandler(fakeRecipeRepo{
+		h := newTestRecipeHandler(fakeRecipeRepo{
 			getRecipeByIDFunc: func(ctx context.Context, id string) (models.Recipe, error) {
 				return models.Recipe{}, sql.ErrNoRows
 			},
@@ -94,7 +94,7 @@ func TestRecipeHandlerGetRecipeByID(t *testing.T) {
 	})
 
 	t.Run("returns recipe json", func(t *testing.T) {
-		h := NewRecipeHandler(fakeRecipeRepo{
+		h := newTestRecipeHandler(fakeRecipeRepo{
 			getRecipeByIDFunc: func(ctx context.Context, id string) (models.Recipe, error) {
 				return models.Recipe{ID: id, Name: "Soup", Category: "dinner"}, nil
 			},
@@ -120,7 +120,7 @@ func TestRecipeHandlerGetRecipeByID(t *testing.T) {
 
 func TestRecipeHandlerGetRecipes(t *testing.T) {
 	t.Run("answers neither a category nor a Name Query with the Feed", func(t *testing.T) {
-		h := NewRecipeHandler(fakeRecipeRepo{
+		h := newTestRecipeHandler(fakeRecipeRepo{
 			getRecipeFeedFunc: func(ctx context.Context, limit int) ([]models.RecipeSummary, error) {
 				if limit != maxFeedResults {
 					t.Fatalf("expected limit %d, got %d", maxFeedResults, limit)
@@ -147,7 +147,7 @@ func TestRecipeHandlerGetRecipes(t *testing.T) {
 
 	t.Run("answers a blank Name Query with the Feed", func(t *testing.T) {
 		called := false
-		h := NewRecipeHandler(fakeRecipeRepo{
+		h := newTestRecipeHandler(fakeRecipeRepo{
 			getRecipeFeedFunc: func(ctx context.Context, limit int) ([]models.RecipeSummary, error) {
 				called = true
 				return []models.RecipeSummary{}, nil
@@ -167,7 +167,7 @@ func TestRecipeHandlerGetRecipes(t *testing.T) {
 	})
 
 	t.Run("lets a limit shorten the Feed", func(t *testing.T) {
-		h := NewRecipeHandler(fakeRecipeRepo{
+		h := newTestRecipeHandler(fakeRecipeRepo{
 			getRecipeFeedFunc: func(ctx context.Context, limit int) ([]models.RecipeSummary, error) {
 				if limit != 5 {
 					t.Fatalf("expected limit 5, got %d", limit)
@@ -186,7 +186,7 @@ func TestRecipeHandlerGetRecipes(t *testing.T) {
 	})
 
 	t.Run("clamps a limit past the cap", func(t *testing.T) {
-		h := NewRecipeHandler(fakeRecipeRepo{
+		h := newTestRecipeHandler(fakeRecipeRepo{
 			getRecipeFeedFunc: func(ctx context.Context, limit int) ([]models.RecipeSummary, error) {
 				if limit != maxFeedResults {
 					t.Fatalf("expected limit %d, got %d", maxFeedResults, limit)
@@ -206,7 +206,7 @@ func TestRecipeHandlerGetRecipes(t *testing.T) {
 
 	t.Run("rejects a limit that is not a positive whole number", func(t *testing.T) {
 		for _, limit := range []string{"abc", "0", "-3", "2.5", ""} {
-			h := NewRecipeHandler(fakeRecipeRepo{})
+			h := newTestRecipeHandler(fakeRecipeRepo{})
 			req := httptest.NewRequest(http.MethodGet, "/recipes?limit="+limit, nil)
 			rec := httptest.NewRecorder()
 
@@ -219,7 +219,7 @@ func TestRecipeHandlerGetRecipes(t *testing.T) {
 	})
 
 	t.Run("lets a limit shorten a Name Query too", func(t *testing.T) {
-		h := NewRecipeHandler(fakeRecipeRepo{
+		h := newTestRecipeHandler(fakeRecipeRepo{
 			searchRecipesByNameFunc: func(ctx context.Context, query string, category string, limit int) ([]models.RecipeSummary, error) {
 				if limit != 5 {
 					t.Fatalf("expected limit 5, got %d", limit)
@@ -238,7 +238,7 @@ func TestRecipeHandlerGetRecipes(t *testing.T) {
 	})
 
 	t.Run("refuses a limit on a category listing, which has no cap to lower", func(t *testing.T) {
-		h := NewRecipeHandler(fakeRecipeRepo{})
+		h := newTestRecipeHandler(fakeRecipeRepo{})
 		req := httptest.NewRequest(http.MethodGet, "/recipes?category=dinner&limit=5", nil)
 		rec := httptest.NewRecorder()
 
@@ -250,7 +250,7 @@ func TestRecipeHandlerGetRecipes(t *testing.T) {
 	})
 
 	t.Run("returns a Feed repository error", func(t *testing.T) {
-		h := NewRecipeHandler(fakeRecipeRepo{
+		h := newTestRecipeHandler(fakeRecipeRepo{
 			getRecipeFeedFunc: func(ctx context.Context, limit int) ([]models.RecipeSummary, error) {
 				return nil, errors.New("db down")
 			},
@@ -266,7 +266,7 @@ func TestRecipeHandlerGetRecipes(t *testing.T) {
 	})
 
 	t.Run("lists a category rather than the Feed", func(t *testing.T) {
-		h := NewRecipeHandler(fakeRecipeRepo{
+		h := newTestRecipeHandler(fakeRecipeRepo{
 			getRecipesByCategoryFunc: func(ctx context.Context, category string) ([]models.RecipeSummary, error) {
 				if category != "dinner" {
 					t.Fatalf("expected category dinner, got %q", category)
@@ -292,7 +292,7 @@ func TestRecipeHandlerGetRecipes(t *testing.T) {
 	})
 
 	t.Run("returns a category repository error", func(t *testing.T) {
-		h := NewRecipeHandler(fakeRecipeRepo{
+		h := newTestRecipeHandler(fakeRecipeRepo{
 			getRecipesByCategoryFunc: func(ctx context.Context, category string) ([]models.RecipeSummary, error) {
 				return nil, errors.New("db down")
 			},
@@ -308,7 +308,7 @@ func TestRecipeHandlerGetRecipes(t *testing.T) {
 	})
 
 	t.Run("searches by name when a query is given", func(t *testing.T) {
-		h := NewRecipeHandler(fakeRecipeRepo{
+		h := newTestRecipeHandler(fakeRecipeRepo{
 			searchRecipesByNameFunc: func(ctx context.Context, query string, category string, limit int) ([]models.RecipeSummary, error) {
 				if query != "shakshuka" {
 					t.Fatalf("expected trimmed query, got %q", query)
@@ -340,7 +340,7 @@ func TestRecipeHandlerGetRecipes(t *testing.T) {
 	})
 
 	t.Run("composes a Name Query with a category", func(t *testing.T) {
-		h := NewRecipeHandler(fakeRecipeRepo{
+		h := newTestRecipeHandler(fakeRecipeRepo{
 			searchRecipesByNameFunc: func(ctx context.Context, query string, category string, limit int) ([]models.RecipeSummary, error) {
 				if query != "shakshuka" || category != "breakfast" {
 					t.Fatalf("unexpected search: query %q, category %q", query, category)
@@ -362,7 +362,7 @@ func TestRecipeHandlerGetRecipes(t *testing.T) {
 	})
 
 	t.Run("returns a name search repository error", func(t *testing.T) {
-		h := NewRecipeHandler(fakeRecipeRepo{
+		h := newTestRecipeHandler(fakeRecipeRepo{
 			searchRecipesByNameFunc: func(ctx context.Context, query string, category string, limit int) ([]models.RecipeSummary, error) {
 				return nil, errors.New("db down")
 			},
@@ -380,7 +380,7 @@ func TestRecipeHandlerGetRecipes(t *testing.T) {
 
 func TestRecipeHandlerGetMyRecipes(t *testing.T) {
 	t.Run("requires auth context", func(t *testing.T) {
-		h := NewRecipeHandler(fakeRecipeRepo{})
+		h := newTestRecipeHandler(fakeRecipeRepo{})
 		req := httptest.NewRequest(http.MethodGet, "/me/recipes", nil)
 		rec := httptest.NewRecorder()
 
@@ -392,7 +392,7 @@ func TestRecipeHandlerGetMyRecipes(t *testing.T) {
 	})
 
 	t.Run("returns recipes for authenticated user", func(t *testing.T) {
-		h := NewRecipeHandler(fakeRecipeRepo{
+		h := newTestRecipeHandler(fakeRecipeRepo{
 			getRecipesByUserIDFunc: func(ctx context.Context, userID string) ([]models.Recipe, error) {
 				if userID != "user-1" {
 					t.Fatalf("expected user-1, got %q", userID)
@@ -411,7 +411,7 @@ func TestRecipeHandlerGetMyRecipes(t *testing.T) {
 
 func TestRecipeHandlerCreateRecipe(t *testing.T) {
 	t.Run("requires auth context", func(t *testing.T) {
-		h := NewRecipeHandler(fakeRecipeRepo{})
+		h := newTestRecipeHandler(fakeRecipeRepo{})
 		req := httptest.NewRequest(http.MethodPost, "/recipes", bytes.NewBufferString(`{}`))
 		rec := httptest.NewRecorder()
 
@@ -423,7 +423,7 @@ func TestRecipeHandlerCreateRecipe(t *testing.T) {
 	})
 
 	t.Run("rejects invalid json", func(t *testing.T) {
-		h := NewRecipeHandler(fakeRecipeRepo{})
+		h := newTestRecipeHandler(fakeRecipeRepo{})
 		req := httptest.NewRequest(http.MethodPost, "/recipes", bytes.NewBufferString("{"))
 		rec := authedRequest(t, req, h.CreateRecipe)
 
@@ -433,7 +433,7 @@ func TestRecipeHandlerCreateRecipe(t *testing.T) {
 	})
 
 	t.Run("requires name and category", func(t *testing.T) {
-		h := NewRecipeHandler(fakeRecipeRepo{})
+		h := newTestRecipeHandler(fakeRecipeRepo{})
 		req := httptest.NewRequest(http.MethodPost, "/recipes", bytes.NewBufferString(`{"name":"Soup"}`))
 		rec := authedRequest(t, req, h.CreateRecipe)
 
@@ -443,8 +443,8 @@ func TestRecipeHandlerCreateRecipe(t *testing.T) {
 	})
 
 	t.Run("creates recipe", func(t *testing.T) {
-		h := NewRecipeHandler(fakeRecipeRepo{
-			createRecipeFunc: func(ctx context.Context, userID string, input models.CreateRecipeInput) (*models.Recipe, error) {
+		h := newTestRecipeHandler(fakeRecipeRepo{
+			createRecipeFunc: func(ctx context.Context, userID string, recipeID string, input models.CreateRecipeInput) (*models.Recipe, error) {
 				if userID != "user-1" {
 					t.Fatalf("expected user-1, got %q", userID)
 				}
@@ -465,7 +465,7 @@ func TestRecipeHandlerCreateRecipe(t *testing.T) {
 
 func TestRecipeHandlerDeleteRecipe(t *testing.T) {
 	t.Run("maps missing rows to not found", func(t *testing.T) {
-		h := NewRecipeHandler(fakeRecipeRepo{
+		h := newTestRecipeHandler(fakeRecipeRepo{
 			deleteRecipeFunc: func(ctx context.Context, id string, userID string) error {
 				return sql.ErrNoRows
 			},
@@ -480,7 +480,7 @@ func TestRecipeHandlerDeleteRecipe(t *testing.T) {
 	})
 
 	t.Run("returns no content on success", func(t *testing.T) {
-		h := NewRecipeHandler(fakeRecipeRepo{
+		h := newTestRecipeHandler(fakeRecipeRepo{
 			deleteRecipeFunc: func(ctx context.Context, id string, userID string) error {
 				if id != "recipe-1" || userID != "user-1" {
 					t.Fatalf("unexpected delete args id=%q userID=%q", id, userID)
@@ -500,7 +500,7 @@ func TestRecipeHandlerDeleteRecipe(t *testing.T) {
 
 func TestRecipeHandlerUpdateRecipe(t *testing.T) {
 	t.Run("rejects invalid json", func(t *testing.T) {
-		h := NewRecipeHandler(fakeRecipeRepo{})
+		h := newTestRecipeHandler(fakeRecipeRepo{})
 		req := httptest.NewRequest(http.MethodPut, "/recipes/recipe-1", bytes.NewBufferString("{"))
 		rec := authedRequest(t, req, h.UpdateRecipe)
 
@@ -510,7 +510,7 @@ func TestRecipeHandlerUpdateRecipe(t *testing.T) {
 	})
 
 	t.Run("path id overrides body id", func(t *testing.T) {
-		h := NewRecipeHandler(fakeRecipeRepo{
+		h := newTestRecipeHandler(fakeRecipeRepo{
 			updateRecipeFunc: func(ctx context.Context, recipe models.Recipe, userID string) error {
 				if recipe.ID != "recipe-from-path" {
 					t.Fatalf("expected path id to win, got %q", recipe.ID)
@@ -531,7 +531,7 @@ func TestRecipeHandlerUpdateRecipe(t *testing.T) {
 	})
 
 	t.Run("maps missing rows to not found", func(t *testing.T) {
-		h := NewRecipeHandler(fakeRecipeRepo{
+		h := newTestRecipeHandler(fakeRecipeRepo{
 			updateRecipeFunc: func(ctx context.Context, recipe models.Recipe, userID string) error {
 				return sql.ErrNoRows
 			},
@@ -557,7 +557,7 @@ func newRecipeStore() *recipeStore {
 	return &recipeStore{recipes: make(map[string]models.Recipe)}
 }
 
-func (s *recipeStore) CreateRecipe(ctx context.Context, userID string, input models.CreateRecipeInput) (*models.Recipe, error) {
+func (s *recipeStore) CreateRecipe(ctx context.Context, userID string, recipeID string, input models.CreateRecipeInput) (*models.Recipe, error) {
 	ingredients := make([]models.Ingredient, 0, len(input.Ingredients))
 	for i, ingredient := range input.Ingredients {
 		ingredients = append(ingredients, models.Ingredient{
@@ -568,7 +568,7 @@ func (s *recipeStore) CreateRecipe(ctx context.Context, userID string, input mod
 	}
 
 	recipe := models.Recipe{
-		ID:            "recipe-1",
+		ID:            recipeID,
 		UserID:        userID,
 		Name:          input.Name,
 		Category:      input.Category,
@@ -593,7 +593,7 @@ func (s *recipeStore) GetRecipeById(ctx context.Context, id string) (models.Reci
 
 func TestRecipeHandlerCreateRecipeTrimsNames(t *testing.T) {
 	t.Run("create response carries the stored names", func(t *testing.T) {
-		h := NewRecipeHandler(newRecipeStore())
+		h := newTestRecipeHandler(newRecipeStore())
 
 		body := `{"name":"  Chicken Dinner ","category":"dinner","ingredients":[{"name":"  Chicken Breast ","measurement":"2 lbs"}]}`
 		req := httptest.NewRequest(http.MethodPost, "/recipes", bytes.NewBufferString(body))
@@ -635,7 +635,7 @@ func TestRecipeHandlerCreateRecipeTrimsNames(t *testing.T) {
 	})
 
 	t.Run("rejects a whitespace-only name", func(t *testing.T) {
-		h := NewRecipeHandler(newRecipeStore())
+		h := newTestRecipeHandler(newRecipeStore())
 		req := httptest.NewRequest(http.MethodPost, "/recipes", bytes.NewBufferString(`{"name":"   ","category":"dinner"}`))
 		rec := authedRequest(t, req, h.CreateRecipe)
 
@@ -647,7 +647,7 @@ func TestRecipeHandlerCreateRecipeTrimsNames(t *testing.T) {
 
 func TestRecipeHandlerUpdateRecipeTrimsNames(t *testing.T) {
 	t.Run("trims recipe and ingredient names before storing", func(t *testing.T) {
-		h := NewRecipeHandler(fakeRecipeRepo{
+		h := newTestRecipeHandler(fakeRecipeRepo{
 			updateRecipeFunc: func(ctx context.Context, recipe models.Recipe, userID string) error {
 				if recipe.Name != "Chicken Dinner" {
 					t.Fatalf("expected trimmed recipe name, got %q", recipe.Name)

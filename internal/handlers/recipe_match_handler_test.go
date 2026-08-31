@@ -49,7 +49,7 @@ func TestRecipeHandlerMatchRecipesRejectsAnEmptyPantry(t *testing.T) {
 
 	for name, body := range tests {
 		t.Run(name, func(t *testing.T) {
-			h := NewRecipeHandler(fakeRecipeRepo{})
+			h := newTestRecipeHandler(fakeRecipeRepo{})
 
 			rec := matchRequest(t, h, body)
 
@@ -71,7 +71,7 @@ func TestRecipeHandlerMatchRecipesWithAPantryThatNormalizesToNothing(t *testing.
 
 	for name, body := range bodies {
 		t.Run(name, func(t *testing.T) {
-			h := NewRecipeHandler(fakeRecipeRepo{
+			h := newTestRecipeHandler(fakeRecipeRepo{
 				getMatchCandidatesFunc: func(ctx context.Context, tokens []string, limit int) ([]models.MatchCandidate, error) {
 					t.Fatal("expected no repository call for a pantry with no Ingredient Terms")
 					return nil, nil
@@ -98,7 +98,7 @@ func TestRecipeHandlerMatchRecipesWithAPantryThatNormalizesToNothing(t *testing.
 // alongside the items that do name a food.
 func TestRecipeHandlerMatchRecipesDropsPantryItemsThatAreAllStopwords(t *testing.T) {
 	var gotTokens []string
-	h := NewRecipeHandler(fakeRecipeRepo{
+	h := newTestRecipeHandler(fakeRecipeRepo{
 		getMatchCandidatesFunc: func(ctx context.Context, tokens []string, limit int) ([]models.MatchCandidate, error) {
 			gotTokens = tokens
 			return nil, nil
@@ -116,7 +116,7 @@ func TestRecipeHandlerMatchRecipesDropsPantryItemsThatAreAllStopwords(t *testing
 }
 
 func TestRecipeHandlerMatchRecipesReturnsRepositoryError(t *testing.T) {
-	h := NewRecipeHandler(fakeRecipeRepo{
+	h := newTestRecipeHandler(fakeRecipeRepo{
 		getMatchCandidatesFunc: func(ctx context.Context, tokens []string, limit int) ([]models.MatchCandidate, error) {
 			return nil, errors.New("boom")
 		},
@@ -132,7 +132,7 @@ func TestRecipeHandlerMatchRecipesReturnsRepositoryError(t *testing.T) {
 func TestRecipeHandlerMatchRecipesDiscardsBlanksAndDuplicates(t *testing.T) {
 	var gotTokens []string
 	var gotLimit int
-	h := NewRecipeHandler(fakeRecipeRepo{
+	h := newTestRecipeHandler(fakeRecipeRepo{
 		getMatchCandidatesFunc: func(ctx context.Context, tokens []string, limit int) ([]models.MatchCandidate, error) {
 			gotTokens = tokens
 			gotLimit = limit
@@ -154,7 +154,7 @@ func TestRecipeHandlerMatchRecipesDiscardsBlanksAndDuplicates(t *testing.T) {
 }
 
 func TestRecipeHandlerMatchRecipesWithAPantryThatMatchesNothing(t *testing.T) {
-	h := NewRecipeHandler(fakeRecipeRepo{
+	h := newTestRecipeHandler(fakeRecipeRepo{
 		getMatchCandidatesFunc: func(ctx context.Context, tokens []string, limit int) ([]models.MatchCandidate, error) {
 			// Narrowing is looser than scoring, so it can hand back a Recipe
 			// that then covers nothing. `beef` against `chicken broth` is the
@@ -179,7 +179,7 @@ func TestRecipeHandlerMatchRecipesWithAPantryThatMatchesNothing(t *testing.T) {
 }
 
 func TestRecipeHandlerMatchRecipesReturnsRankedMatches(t *testing.T) {
-	h := NewRecipeHandler(fakeRecipeRepo{
+	h := newTestRecipeHandler(fakeRecipeRepo{
 		getMatchCandidatesFunc: func(ctx context.Context, tokens []string, limit int) ([]models.MatchCandidate, error) {
 			return []models.MatchCandidate{
 				{
@@ -227,7 +227,7 @@ func TestRecipeHandlerMatchRecipesReturnsRankedMatches(t *testing.T) {
 }
 
 func TestRecipeHandlerMatchRecipesCapsTheResponse(t *testing.T) {
-	h := NewRecipeHandler(fakeRecipeRepo{
+	h := newTestRecipeHandler(fakeRecipeRepo{
 		getMatchCandidatesFunc: func(ctx context.Context, tokens []string, limit int) ([]models.MatchCandidate, error) {
 			candidates := make([]models.MatchCandidate, 0, 120)
 			for i := range 120 {
@@ -276,7 +276,7 @@ func TestRecipeHandlerMatchRecipesIsDeterministicAcrossRequests(t *testing.T) {
 	}
 
 	call := 0
-	h := NewRecipeHandler(fakeRecipeRepo{
+	h := newTestRecipeHandler(fakeRecipeRepo{
 		getMatchCandidatesFunc: func(ctx context.Context, tokens []string, limit int) ([]models.MatchCandidate, error) {
 			// A different arrival order every call, which is all narrowing
 			// promises.
@@ -296,7 +296,7 @@ func TestRecipeHandlerMatchRecipesIsDeterministicAcrossRequests(t *testing.T) {
 }
 
 func TestRecipeHandlerMatchRecipesNeedsNoAuthentication(t *testing.T) {
-	h := NewRecipeHandler(fakeRecipeRepo{
+	h := newTestRecipeHandler(fakeRecipeRepo{
 		getMatchCandidatesFunc: func(ctx context.Context, tokens []string, limit int) ([]models.MatchCandidate, error) {
 			return nil, nil
 		},

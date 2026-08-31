@@ -12,6 +12,7 @@ Health check: `GET /health`
 
 ## Features
 - CRUD for recipes + ingredients
+- Recipe images uploaded direct to Cloudflare R2 and served from the bucket
 - PostgreSQL schema + SQL migrations (golang-migrate)
 - JWT auth (Bearer tokens)
 - Protected endpoints enforce recipe ownership (e.g., `WHERE id = $1 AND user_id = $2`)
@@ -36,9 +37,10 @@ Health check: `GET /health`
 - `GET /me` — current user (requires auth)
 
 ### Protected (requires `Authorization: Bearer <token>`)
-- `POST /recipes` — create shared recipe
+- `POST /recipes` — create shared recipe. A recipe with an image names it by `image_key`, the key returned by `POST /recipes/images`; the server checks the staged object's size and type, then promotes it to a key it derives itself. See ADR-0006.
+- `POST /recipes/images` — mint a presigned upload for one recipe image. Body is `{"content_type":"image/jpeg","content_length":123456}`; the response is `{"upload_url","key","expires_at"}`. `PUT` the bytes straight to `upload_url` with exactly that `Content-Type` and `Content-Length`, then send the `key` back as `image_key` when sharing. JPEG and PNG only, 5MB, and the URL lives five minutes. Rate limited per user.
 - `GET /me/recipes` — list my shared recipes
-- `PUT /recipes/{id}` — update my recipe
+- `PUT /recipes/{id}` — update my recipe. Sending a fresh `image_key` replaces the image; sending none leaves the recipe with no image and deletes the stored object.
 - `DELETE /recipes/{id}` — delete my recipe
 
 ---
@@ -52,8 +54,17 @@ Create a `.env` file:
 PORT=8080
 DATABASE_URL=postgres://postgres:password@localhost:5432/bitelyapi?sslmode=disable
 JWT_SECRET=your_secret
+R2_ACCOUNT_ID=your_cloudflare_account_id
+R2_ACCESS_KEY_ID=your_r2_access_key_id
+R2_SECRET_ACCESS_KEY=your_r2_secret_access_key
+R2_BUCKET=bitely-images
 R2_PUBLIC_BASE_URL=https://pub-<hash>.r2.dev
 ```
+
+`scripts/provision-r2.sh` walks through the Cloudflare and Render side of that:
+it creates the bucket, enables the Public Development URL, mints an API token
+scoped to the one bucket, sets the lifecycle rule that expires abandoned
+uploads, and writes the five values into `.env`.
 
 ### 2. Start Postgres
 Start a local Postgres instance (local install, Docker, etc.).
@@ -78,7 +89,10 @@ API will be available at `http://localhost:8080`.
 
 Build + Run:
 ```bash
-DATABASE_URL="YOUR_DATABASE_URL" JWT_SECRET="YOUR_SECRET" R2_PUBLIC_BASE_URL="https://pub-<hash>.r2.dev" make docker-up
+DATABASE_URL="YOUR_DATABASE_URL" JWT_SECRET="YOUR_SECRET" \
+  R2_ACCOUNT_ID="YOUR_ACCOUNT_ID" R2_ACCESS_KEY_ID="YOUR_KEY_ID" \
+  R2_SECRET_ACCESS_KEY="YOUR_SECRET_KEY" R2_BUCKET="bitely-images" \
+  R2_PUBLIC_BASE_URL="https://pub-<hash>.r2.dev" make docker-up
 ```
 
 Verify:
@@ -103,6 +117,10 @@ Run:
 docker run --rm -p 8080:8080 \
   -e DATABASE_URL="YOUR_DATABASE_URL" \
   -e JWT_SECRET="YOUR_SECRET" \
+  -e R2_ACCOUNT_ID="YOUR_ACCOUNT_ID" \
+  -e R2_ACCESS_KEY_ID="YOUR_KEY_ID" \
+  -e R2_SECRET_ACCESS_KEY="YOUR_SECRET_KEY" \
+  -e R2_BUCKET="bitely-images" \
   -e R2_PUBLIC_BASE_URL="https://pub-<hash>.r2.dev" \
   bitely-api
 ```
@@ -114,12 +132,11 @@ curl http://localhost:8080/health
 
 ## Deployment Notes (Render + Neon)
 - API is containerized with Docker and deployed to Render.
-- Render configuration is managed via environment variables (`DATABASE_URL`, `JWT_SECRET`, `R2_PUBLIC_BASE_URL`, etc.).
+- Render configuration is managed via environment variables (`DATABASE_URL`, `JWT_SECRET`, the `R2_*` values, etc.).
 - Neon hosts the production PostgreSQL database.
 - Base URL: https://bitelyapi-docker.onrender.com
 
 ## Roadmap
 - Sign in with Apple
-- Image upload for shared recipes (S3 / R2)
 - Pagination + improved search
 - Basic observability (structured logs / request IDs)
