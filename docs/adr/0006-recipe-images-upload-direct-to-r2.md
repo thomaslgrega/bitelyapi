@@ -28,9 +28,14 @@ Presigned URLs work on neither the Public Development URL nor a custom domain, s
 
 Images are public and effectively permanent. There is no moderation layer and the API cannot enforce anything about what an image depicts, only its size and declared type. Deleting or replacing a Recipe deletes its object best-effort; an R2 failure does not fail the request, because the Recipe genuinely did change. A rare orphan survives that, and is accepted rather than engineered against.
 
-Two facts could not be settled from Cloudflare's documentation and are recorded here once tested against a real bucket:
+Two facts Cloudflare's documentation does not settle were tested against the bucket, and both came out in this decision's favour.
 
-- Whether R2 rejects an upload whose size differs from a signed `Content-Length`. Cloudflare documents the content-type case and only that case.
-- Whether the direct `HEAD`/`CopyObject` path hits the checksum `501` that affected non-presigned `PutObject` from `aws-sdk-go-v2` `service/s3` v1.73.0. It appears fixed server-side; the opt-out is `RequestChecksumCalculation` and `ResponseChecksumValidation` set to `WhenRequired`.
+**R2 enforces the signed `Content-Length`.** A presigned URL minted for 1024 bytes answers `403` to a 4096-byte upload and stores nothing, the same way it refuses a mismatched content type. The size limit therefore holds at two points, not one: the signature caps what a given URL can write at all, and the `HEAD` before promotion is what the limit is actually specified against. The `HEAD` stays load-bearing regardless — an upload can still lie about its type by declaring `image/jpeg` and sending anything, which only reading the stored object catches.
+
+That an oversized upload is refused outright is stronger than this decision assumed. It does not close the billing window above, because a signed URL can be replayed for its whole life, but it does mean a client cannot turn one signature into an object of arbitrary size.
+
+**The direct `HEAD`/`CopyObject` path does not hit the checksum `501`.** A `HEAD` reports the stored size and type, the server-side copy to the derived key succeeds, and the copy carries its content type across. `RequestChecksumCalculation` and `ResponseChecksumValidation` are set to `WhenRequired` anyway: nothing here needs a checksum, and the setting costs nothing.
+
+Both were established with a build-tagged tier in `internal/r2` that talks to a real bucket (`go test -tags manual ./internal/r2/`). It is tagged out of `go test ./...`, which runs with neither database nor network.
 
 Presigning itself needs no checksum configuration, and must not set `ChecksumAlgorithm` on the input: doing so signs `x-amz-checksum-crc32` for an empty body and every real upload through the URL fails.
