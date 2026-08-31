@@ -9,6 +9,7 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/google/uuid"
 	"github.com/thomaslgrega/bitelyapi/internal/matching"
 	"github.com/thomaslgrega/bitelyapi/internal/middleware"
 	"github.com/thomaslgrega/bitelyapi/internal/models"
@@ -16,21 +17,23 @@ import (
 
 type recipeRepository interface {
 	GetRecipeById(ctx context.Context, id string) (models.Recipe, error)
+	GetRecipeAuthor(ctx context.Context, id string) (string, error)
 	GetRecipesByCategory(ctx context.Context, category string) ([]models.RecipeSummary, error)
 	GetRecipeFeed(ctx context.Context, limit int) ([]models.RecipeSummary, error)
 	SearchRecipesByName(ctx context.Context, query string, category string, limit int) ([]models.RecipeSummary, error)
 	GetRecipesByUserID(ctx context.Context, userID string) ([]models.Recipe, error)
-	CreateRecipe(ctx context.Context, userID string, input models.CreateRecipeInput) (*models.Recipe, error)
-	DeleteRecipe(ctx context.Context, id string, userID string) error
-	UpdateRecipe(ctx context.Context, recipe models.Recipe, userID string) error
+	CreateRecipe(ctx context.Context, userID string, recipeID string, input models.CreateRecipeInput) (*models.Recipe, error)
+	DeleteRecipe(ctx context.Context, id string, userID string) (string, error)
+	UpdateRecipe(ctx context.Context, recipe models.Recipe, userID string) (string, error)
 	GetMatchCandidates(ctx context.Context, tokens []string, limit int) ([]models.MatchCandidate, error)
 }
 type RecipeHandler struct {
-	repo recipeRepository
+	repo   recipeRepository
+	images imageStore
 }
 
-func NewRecipeHandler(repo recipeRepository) *RecipeHandler {
-	return &RecipeHandler{repo: repo}
+func NewRecipeHandler(repo recipeRepository, images imageStore) *RecipeHandler {
+	return &RecipeHandler{repo: repo, images: images}
 }
 
 func (h *RecipeHandler) GetRecipeById(w http.ResponseWriter, r *http.Request) {
@@ -145,10 +148,35 @@ func (h *RecipeHandler) CreateRecipe(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	recipe, err := h.repo.CreateRecipe(r.Context(), userID, input)
+	// The Recipe id is minted here rather than by the database because the
+	// promoted key is derived from it and the object moves before the row is
+	// written, so that no row can point at nothing (ADR-0006).
+	recipeID := uuid.NewString()
+
+	stagedKey := input.ImageKey
+	if stagedKey != "" {
+		promoted, err := h.promoteImage(r.Context(), stagedKey, recipeID)
+		if err != nil {
+			writeImageError(w, err)
+			return
+		}
+		input.ImageKey = promoted
+	}
+
+	recipe, err := h.repo.CreateRecipe(r.Context(), userID, recipeID, input)
 	if err != nil {
+		// The promoted key sits outside the staging prefix, where no lifecycle
+		// rule would ever reap it, so a row that never landed takes its object
+		// with it.
+		if stagedKey != "" {
+			h.discardImage(r.Context(), input.ImageKey)
+		}
 		http.Error(w, "failed to create recipe", http.StatusInternalServerError)
 		return
+	}
+
+	if stagedKey != "" {
+		h.discardImage(r.Context(), stagedKey)
 	}
 
 	w.WriteHeader((http.StatusCreated))
@@ -170,7 +198,9 @@ func (h *RecipeHandler) DeleteRecipe(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	err = h.repo.DeleteRecipe(r.Context(), id, userID)
+	// The delete names the object the row held, rather than a read before it
+	// naming one a concurrent write may already have replaced.
+	deleted, err := h.repo.DeleteRecipe(r.Context(), id, userID)
 	if errors.Is(err, sql.ErrNoRows) {
 		http.Error(w, "recipe not found", http.StatusNotFound)
 		return
@@ -179,6 +209,10 @@ func (h *RecipeHandler) DeleteRecipe(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		http.Error(w, "recipe delete failed", http.StatusInternalServerError)
 		return
+	}
+
+	if deleted != "" {
+		h.discardImage(r.Context(), deleted)
 	}
 
 	w.WriteHeader(http.StatusNoContent)
@@ -205,15 +239,58 @@ func (h *RecipeHandler) UpdateRecipe(w http.ResponseWriter, r *http.Request) {
 	}
 	recipe.ID = id
 
-	err = h.repo.UpdateRecipe(r.Context(), recipe, userID)
-	if errors.Is(err, sql.ErrNoRows) {
-		http.Error(w, "recipe not found", http.StatusNotFound)
+	stagedKey := recipe.ImageKey
+
+	// Shape first, so a malformed key costs no query.
+	if stagedKey != "" && !models.IsStagedImageKey(stagedKey) {
+		writeImageError(w, errNotStaged())
 		return
 	}
 
+	// Authorship is established before the copy rather than by the update that
+	// follows it, so a stranger's legally staged upload cannot reach the
+	// Author's Recipe at all.
+	if err := h.authorizeRecipe(r.Context(), recipe.ID, userID); err != nil {
+		writeRecipeLookupError(w, err)
+		return
+	}
+
+	if stagedKey != "" {
+		promoted, err := h.promoteImage(r.Context(), stagedKey, recipe.ID)
+		if err != nil {
+			writeImageError(w, err)
+			return
+		}
+		recipe.ImageKey = promoted
+	}
+
+	superseded, err := h.repo.UpdateRecipe(r.Context(), recipe, userID)
 	if err != nil {
+		// The promotion landed on its own key, so the Recipe Image is still
+		// whatever the row says — and if the row is gone, the copy belongs to
+		// nothing. Either way it sits outside the staging prefix, where no
+		// lifecycle rule would reach it.
+		if recipe.ImageKey != "" {
+			h.discardImage(r.Context(), recipe.ImageKey)
+		}
+		if errors.Is(err, sql.ErrNoRows) {
+			http.Error(w, "recipe not found", http.StatusNotFound)
+			return
+		}
 		http.Error(w, "failed to update recipe", http.StatusInternalServerError)
 		return
+	}
+
+	if stagedKey != "" {
+		h.discardImage(r.Context(), stagedKey)
+	}
+
+	// The update reports the object the row stopped naming — read inside its
+	// own transaction, so a write that landed since the authorship check is
+	// the one this cleans up after. It supersedes the new key including when
+	// the update leaves the Recipe with no image at all.
+	if superseded != "" && superseded != recipe.ImageKey {
+		h.discardImage(r.Context(), superseded)
 	}
 
 	w.WriteHeader(http.StatusNoContent)
