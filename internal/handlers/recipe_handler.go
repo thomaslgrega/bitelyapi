@@ -17,7 +17,7 @@ import (
 
 type recipeRepository interface {
 	GetRecipeById(ctx context.Context, id string) (models.Recipe, error)
-	GetRecipeAuthor(ctx context.Context, id string) (string, error)
+	GetStoredImage(ctx context.Context, id string) (models.StoredImage, error)
 	GetRecipesByCategory(ctx context.Context, category string) ([]models.RecipeSummary, error)
 	GetRecipeFeed(ctx context.Context, limit int) ([]models.RecipeSummary, error)
 	SearchRecipesByName(ctx context.Context, query string, category string, limit int) ([]models.RecipeSummary, error)
@@ -149,9 +149,8 @@ func (h *RecipeHandler) CreateRecipe(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// The Recipe id is minted here rather than by the database because the
-	// promoted key is derived from it, and the object moves before the row is
-	// written: a failure then leaves an object the lifecycle rule eats, rather
-	// than a row pointing at nothing (ADR-0006).
+	// promoted key is derived from it and the object moves before the row is
+	// written, so that no row can point at nothing (ADR-0006).
 	recipeID := uuid.NewString()
 
 	stagedKey := input.ImageKey
@@ -199,6 +198,14 @@ func (h *RecipeHandler) DeleteRecipe(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// The object is read before the row goes, because a promoted key is unique
+	// per upload and the row is the only record of which one is live.
+	stored, err := h.storedImageOf(r.Context(), id, userID)
+	if err != nil {
+		writeRecipeLookupError(w, err)
+		return
+	}
+
 	err = h.repo.DeleteRecipe(r.Context(), id, userID)
 	if errors.Is(err, sql.ErrNoRows) {
 		http.Error(w, "recipe not found", http.StatusNotFound)
@@ -210,7 +217,9 @@ func (h *RecipeHandler) DeleteRecipe(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	h.discardImage(r.Context(), models.PromotedImageKey(id))
+	if stored.Key != "" {
+		h.discardImage(r.Context(), stored.Key)
+	}
 
 	w.WriteHeader(http.StatusNoContent)
 }
@@ -237,22 +246,24 @@ func (h *RecipeHandler) UpdateRecipe(w http.ResponseWriter, r *http.Request) {
 	recipe.ID = id
 
 	stagedKey := recipe.ImageKey
+
+	// Shape first, so a malformed key costs no query.
+	if stagedKey != "" && !models.IsStagedImageKey(stagedKey) {
+		writeImageError(w, errNotStaged())
+		return
+	}
+
+	// Authorship is established before the copy rather than by the update that
+	// follows it, so a stranger's legally staged upload cannot reach the
+	// Author's Recipe at all. The read also names the object this update
+	// supersedes, which only the row records.
+	stored, err := h.storedImageOf(r.Context(), recipe.ID, userID)
+	if err != nil {
+		writeRecipeLookupError(w, err)
+		return
+	}
+
 	if stagedKey != "" {
-		// Shape first, so a malformed key costs no query.
-		if !models.IsStagedImageKey(stagedKey) {
-			writeImageError(w, errNotStaged())
-			return
-		}
-
-		// Promotion overwrites a key derived from the path id, so ownership is
-		// established before the copy rather than by the update that follows
-		// it: otherwise a stranger's legally staged upload replaces the
-		// Author's image and the request 404s afterwards.
-		if err := h.authors(r.Context(), recipe.ID, userID); err != nil {
-			http.Error(w, "recipe not found", http.StatusNotFound)
-			return
-		}
-
 		promoted, err := h.promoteImage(r.Context(), stagedKey, recipe.ID)
 		if err != nil {
 			writeImageError(w, err)
@@ -268,17 +279,25 @@ func (h *RecipeHandler) UpdateRecipe(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if err != nil {
+		// The promotion landed on its own key, so the Recipe Image is still
+		// whatever the row says. What the copy left behind sits outside the
+		// staging prefix, where no lifecycle rule would reach it.
+		if recipe.ImageKey != "" {
+			h.discardImage(r.Context(), recipe.ImageKey)
+		}
 		http.Error(w, "failed to update recipe", http.StatusInternalServerError)
 		return
 	}
 
-	// A promotion overwrites the derived key, so the only object left behind
-	// is the staged one. An update that keeps no image supersedes the derived
-	// key itself. Either way the row has already committed.
 	if stagedKey != "" {
 		h.discardImage(r.Context(), stagedKey)
-	} else {
-		h.discardImage(r.Context(), models.PromotedImageKey(recipe.ID))
+	}
+
+	// The row now names the new object, so the one it named before is
+	// superseded — including when the update leaves the Recipe with no image
+	// at all.
+	if stored.Key != "" && stored.Key != recipe.ImageKey {
+		h.discardImage(r.Context(), stored.Key)
 	}
 
 	w.WriteHeader(http.StatusNoContent)

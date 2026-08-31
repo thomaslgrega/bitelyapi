@@ -10,6 +10,7 @@ import (
 	"net/http/httptest"
 	"reflect"
 	"strconv"
+	"strings"
 	"testing"
 	"time"
 
@@ -194,8 +195,8 @@ func TestCreateRecipePromotesTheStagedImage(t *testing.T) {
 		if store.promotedFrom != stagedTestKey {
 			t.Fatalf("expected the staged key to be promoted, got %q", store.promotedFrom)
 		}
-		if want := models.PromotedImageKey(createdID); store.promotedTo != want {
-			t.Fatalf("expected promotion to %q, got %q", want, store.promotedTo)
+		if !strings.HasPrefix(store.promotedTo, "recipes/"+createdID+"/") {
+			t.Fatalf("expected promotion under the new recipe, got %q", store.promotedTo)
 		}
 		if created.ImageKey != store.promotedTo {
 			t.Fatalf("expected the row to hold the promoted key, got %q", created.ImageKey)
@@ -345,8 +346,8 @@ func TestUpdateRecipeImage(t *testing.T) {
 		store := &fakeImageStore{}
 		var updated models.Recipe
 		repo := fakeRecipeRepo{
-			getRecipeAuthorFunc: func(ctx context.Context, id string) (string, error) {
-				return "user-1", nil
+			getStoredImageFunc: func(ctx context.Context, id string) (models.StoredImage, error) {
+				return models.StoredImage{Author: "user-1", Key: "recipes/recipe-1/live.jpg"}, nil
 			},
 			updateRecipeFunc: func(ctx context.Context, recipe models.Recipe, userID string) error {
 				store.calls = append(store.calls, "update")
@@ -364,20 +365,81 @@ func TestUpdateRecipeImage(t *testing.T) {
 		if rec.Code != http.StatusNoContent {
 			t.Fatalf("expected status %d, got %d: %s", http.StatusNoContent, rec.Code, rec.Body)
 		}
-		if want := []string{"head", "promote", "update", "delete"}; !reflect.DeepEqual(store.calls, want) {
+		if want := []string{"head", "promote", "update", "delete", "delete"}; !reflect.DeepEqual(store.calls, want) {
 			t.Fatalf("expected calls %v, got %v", want, store.calls)
 		}
-		if want := models.PromotedImageKey("recipe-1"); updated.ImageKey != want {
-			t.Fatalf("expected the row to hold %q, got %q", want, updated.ImageKey)
+		if !strings.HasPrefix(updated.ImageKey, "recipes/recipe-1/") {
+			t.Fatalf("expected the row to hold a key derived from the recipe, got %q", updated.ImageKey)
 		}
-		if len(store.deletedKeys) != 1 || store.deletedKeys[0] != stagedTestKey {
-			t.Fatalf("expected the staged object to be cleaned up, got %v", store.deletedKeys)
+		if updated.ImageKey == "recipes/recipe-1/live.jpg" {
+			t.Fatal("expected the replacement to land beside the live object, not on it")
+		}
+		if want := []string{stagedTestKey, "recipes/recipe-1/live.jpg"}; !reflect.DeepEqual(store.deletedKeys, want) {
+			t.Fatalf("expected the staged and superseded objects cleaned up, got %v", store.deletedKeys)
+		}
+	})
+
+	t.Run("leaves the live image alone when the row fails", func(t *testing.T) {
+		// The copy lands on its own key, so a Recipe Image changes only when
+		// the row does. The orphan the failure leaves sits outside the staging
+		// prefix, so nothing else would reap it.
+		store := &fakeImageStore{}
+		repo := fakeRecipeRepo{
+			getStoredImageFunc: func(ctx context.Context, id string) (models.StoredImage, error) {
+				return models.StoredImage{Author: "user-1", Key: "recipes/recipe-1/live.jpg"}, nil
+			},
+			updateRecipeFunc: func(ctx context.Context, recipe models.Recipe, userID string) error {
+				return errors.New("commit failed")
+			},
+		}
+		h := NewRecipeHandler(repo, store)
+
+		body := `{"name":"Shakshuka","category":"dinner","image_key":"` + stagedTestKey + `"}`
+		req := httptest.NewRequest(http.MethodPut, "/recipes/recipe-1", bytes.NewBufferString(body))
+		req.SetPathValue("id", "recipe-1")
+		rec := authedRequest(t, req, h.UpdateRecipe)
+
+		if rec.Code != http.StatusInternalServerError {
+			t.Fatalf("expected status %d, got %d", http.StatusInternalServerError, rec.Code)
+		}
+		for _, deleted := range store.deletedKeys {
+			if deleted == "recipes/recipe-1/live.jpg" {
+				t.Fatal("expected the live object to survive a failed update")
+			}
+		}
+		if len(store.deletedKeys) != 1 || store.deletedKeys[0] != store.promotedTo {
+			t.Fatalf("expected the promoted orphan to be dropped, got %v", store.deletedKeys)
+		}
+	})
+
+	t.Run("reports a lookup failure as a server error", func(t *testing.T) {
+		store := &fakeImageStore{}
+		repo := fakeRecipeRepo{
+			getStoredImageFunc: func(ctx context.Context, id string) (models.StoredImage, error) {
+				return models.StoredImage{}, errors.New("the database is down")
+			},
+		}
+		h := NewRecipeHandler(repo, store)
+
+		body := `{"name":"Shakshuka","category":"dinner","image_key":"` + stagedTestKey + `"}`
+		req := httptest.NewRequest(http.MethodPut, "/recipes/recipe-1", bytes.NewBufferString(body))
+		req.SetPathValue("id", "recipe-1")
+		rec := authedRequest(t, req, h.UpdateRecipe)
+
+		if rec.Code != http.StatusInternalServerError {
+			t.Fatalf("expected status %d, got %d", http.StatusInternalServerError, rec.Code)
+		}
+		if len(store.calls) != 0 {
+			t.Fatalf("expected no store calls, got %v", store.calls)
 		}
 	})
 
 	t.Run("deletes the superseded object when the recipe keeps no image", func(t *testing.T) {
 		store := &fakeImageStore{}
 		repo := fakeRecipeRepo{
+			getStoredImageFunc: func(ctx context.Context, id string) (models.StoredImage, error) {
+				return models.StoredImage{Author: "user-1", Key: "recipes/recipe-1/live.jpg"}, nil
+			},
 			updateRecipeFunc: func(ctx context.Context, recipe models.Recipe, userID string) error {
 				store.calls = append(store.calls, "update")
 				return nil
@@ -395,8 +457,8 @@ func TestUpdateRecipeImage(t *testing.T) {
 		if want := []string{"update", "delete"}; !reflect.DeepEqual(store.calls, want) {
 			t.Fatalf("expected calls %v, got %v", want, store.calls)
 		}
-		if want := models.PromotedImageKey("recipe-1"); store.deletedKeys[0] != want {
-			t.Fatalf("expected %q to be deleted, got %v", want, store.deletedKeys)
+		if store.deletedKeys[0] != "recipes/recipe-1/live.jpg" {
+			t.Fatalf("expected the stored object to be deleted, got %v", store.deletedKeys)
 		}
 	})
 
@@ -407,6 +469,9 @@ func TestUpdateRecipeImage(t *testing.T) {
 			},
 		}
 		repo := fakeRecipeRepo{
+			getStoredImageFunc: func(ctx context.Context, id string) (models.StoredImage, error) {
+				return models.StoredImage{Author: "user-1", Key: "recipes/recipe-1/live.jpg"}, nil
+			},
 			updateRecipeFunc: func(ctx context.Context, recipe models.Recipe, userID string) error {
 				return nil
 			},
@@ -428,8 +493,8 @@ func TestUpdateRecipeImage(t *testing.T) {
 		// object with a legally staged upload of their own.
 		store := &fakeImageStore{}
 		repo := fakeRecipeRepo{
-			getRecipeAuthorFunc: func(ctx context.Context, id string) (string, error) {
-				return "user-2", nil
+			getStoredImageFunc: func(ctx context.Context, id string) (models.StoredImage, error) {
+				return models.StoredImage{Author: "user-2"}, nil
 			},
 			updateRecipeFunc: func(ctx context.Context, recipe models.Recipe, userID string) error {
 				t.Fatal("expected no update")
@@ -454,8 +519,8 @@ func TestUpdateRecipeImage(t *testing.T) {
 	t.Run("promotes nothing into a recipe that does not exist", func(t *testing.T) {
 		store := &fakeImageStore{}
 		repo := fakeRecipeRepo{
-			getRecipeAuthorFunc: func(ctx context.Context, id string) (string, error) {
-				return "", sql.ErrNoRows
+			getStoredImageFunc: func(ctx context.Context, id string) (models.StoredImage, error) {
+				return models.StoredImage{}, sql.ErrNoRows
 			},
 		}
 		h := NewRecipeHandler(repo, store)
@@ -501,6 +566,9 @@ func TestDeleteRecipeDeletesTheImage(t *testing.T) {
 	t.Run("deletes the object once the row is gone", func(t *testing.T) {
 		store := &fakeImageStore{}
 		repo := fakeRecipeRepo{
+			getStoredImageFunc: func(ctx context.Context, id string) (models.StoredImage, error) {
+				return models.StoredImage{Author: "user-1", Key: "recipes/recipe-1/live.jpg"}, nil
+			},
 			deleteRecipeFunc: func(ctx context.Context, id string, userID string) error {
 				store.calls = append(store.calls, "delete-row")
 				return nil
@@ -518,8 +586,8 @@ func TestDeleteRecipeDeletesTheImage(t *testing.T) {
 		if want := []string{"delete-row", "delete"}; !reflect.DeepEqual(store.calls, want) {
 			t.Fatalf("expected calls %v, got %v", want, store.calls)
 		}
-		if want := models.PromotedImageKey("recipe-1"); store.deletedKeys[0] != want {
-			t.Fatalf("expected %q to be deleted, got %v", want, store.deletedKeys)
+		if store.deletedKeys[0] != "recipes/recipe-1/live.jpg" {
+			t.Fatalf("expected the stored object to be deleted, got %v", store.deletedKeys)
 		}
 	})
 
@@ -530,6 +598,9 @@ func TestDeleteRecipeDeletesTheImage(t *testing.T) {
 			},
 		}
 		repo := fakeRecipeRepo{
+			getStoredImageFunc: func(ctx context.Context, id string) (models.StoredImage, error) {
+				return models.StoredImage{Author: "user-1", Key: "recipes/recipe-1/live.jpg"}, nil
+			},
 			deleteRecipeFunc: func(ctx context.Context, id string, userID string) error {
 				return nil
 			},

@@ -51,9 +51,33 @@ func TestIsStagedImageKeyRefusesAnythingButIncomingUUID(t *testing.T) {
 	}
 }
 
-func TestPromotedImageKeyIsDerivedFromTheRecipe(t *testing.T) {
-	if got := PromotedImageKey("recipe-1"); got != "recipes/recipe-1/image.jpg" {
-		t.Fatalf("expected a key derived from the recipe id, got %q", got)
+func TestNewImageKeyIsDerivedFromTheRecipeAndUniquePerUpload(t *testing.T) {
+	key, err := NewImageKey("recipe-1")
+	if err != nil {
+		t.Fatalf("failed to mint an image key: %v", err)
+	}
+
+	if !strings.HasPrefix(key, "recipes/recipe-1/") {
+		t.Fatalf("expected a key derived from the recipe id, got %q", key)
+	}
+	if !strings.HasSuffix(key, ".jpg") {
+		t.Fatalf("expected a jpg key, got %q", key)
+	}
+
+	// A replacement lands beside the live object rather than on top of it, so
+	// a Recipe Image only changes when the row does.
+	other, err := NewImageKey("recipe-1")
+	if err != nil {
+		t.Fatalf("failed to mint a second image key: %v", err)
+	}
+	if other == key {
+		t.Fatalf("expected each upload to get its own key, got %q twice", key)
+	}
+
+	// A promoted key is not a staged one, so it can never be handed back as a
+	// claim ticket.
+	if IsStagedImageKey(key) {
+		t.Fatalf("expected %q not to pass as a staged upload", key)
 	}
 }
 

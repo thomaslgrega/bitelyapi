@@ -12,8 +12,8 @@ const (
 	// rejected, which is why there is no reaper (ADR-0006).
 	stagedImagePrefix = "incoming/"
 
-	// MaxImageBytes caps a Recipe Image. R2 has no signing-time size limit, so
-	// this is checked with a HEAD on the staged object (ADR-0006).
+	// MaxImageBytes caps a Recipe Image. Signing pins one byte count rather
+	// than a ceiling, so the limit is checked with a HEAD (ADR-0006).
 	MaxImageBytes = 5 << 20
 )
 
@@ -53,9 +53,15 @@ func IsStagedImageKey(key string) bool {
 	return len(staged) == 36 && uuid.Validate(staged) == nil
 }
 
-// PromotedImageKey is where a staged image lands once its Recipe exists. The
+// NewImageKey is where a staged image lands once its Recipe is known. The
 // server derives it from the Recipe id so a client can name nothing outside
-// the staging prefix (ADR-0006).
-func PromotedImageKey(recipeID string) string {
-	return "recipes/" + recipeID + "/image.jpg"
+// the staging prefix, and mints a fresh one per upload so a replacement never
+// writes over the object the Recipe currently serves (ADR-0006).
+func NewImageKey(recipeID string) (string, error) {
+	promoted, err := uuid.NewRandom()
+	if err != nil {
+		return "", err
+	}
+
+	return "recipes/" + recipeID + "/" + promoted.String() + ".jpg", nil
 }

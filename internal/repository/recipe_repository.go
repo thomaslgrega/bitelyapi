@@ -23,17 +23,18 @@ func NewRecipeRepository(db *sql.DB, images models.ImageLocator) *RecipeReposito
 	return &RecipeRepository{db: db, images: images}
 }
 
-// GetRecipeAuthor answers who may change a Recipe. A Recipe Image is promoted
-// to a key derived from the Recipe id before the row is touched, so the write
-// paths establish ownership before the copy rather than after it.
-func (r *RecipeRepository) GetRecipeAuthor(ctx context.Context, id string) (string, error) {
-	var userID string
-	err := r.db.QueryRowContext(ctx, "SELECT user_id FROM recipes WHERE id = $1", id).Scan(&userID)
+// GetStoredImage answers who authored a Recipe and which object it names. The
+// write paths read it before touching the bucket: a promoted key is unique per
+// upload, so nothing but the row records which object is live (ADR-0006).
+func (r *RecipeRepository) GetStoredImage(ctx context.Context, id string) (models.StoredImage, error) {
+	var stored models.StoredImage
+	err := r.db.QueryRowContext(ctx, "SELECT user_id, image_key FROM recipes WHERE id = $1", id).
+		Scan(&stored.Author, &stored.Key)
 	if err != nil {
-		return "", err
+		return models.StoredImage{}, err
 	}
 
-	return userID, nil
+	return stored, nil
 }
 
 func (r *RecipeRepository) GetRecipesByUserID(ctx context.Context, userID string) ([]models.Recipe, error) {

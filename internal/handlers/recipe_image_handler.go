@@ -53,9 +53,8 @@ func (h *RecipeHandler) PresignImageUpload(w http.ResponseWriter, r *http.Reques
 		return
 	}
 
-	// The signed length is not the enforcement point — the HEAD at share time
-	// is — but signing a length the share would refuse only buys the client a
-	// wasted upload.
+	// R2 refuses an upload that does not match its signed length, so signing a
+	// length the share would refuse only buys the client a 403 (ADR-0006).
 	if request.ContentLength < 1 || request.ContentLength > models.MaxImageBytes {
 		http.Error(w, fmt.Sprintf("content_length must be between 1 and %d bytes", models.MaxImageBytes), http.StatusBadRequest)
 		return
@@ -95,7 +94,12 @@ func (h *RecipeHandler) promoteImage(ctx context.Context, stagedKey string, reci
 		return "", fmt.Errorf("%w: image must be image/jpeg or image/png", errImageRejected)
 	}
 
-	promoted := models.PromotedImageKey(recipeID)
+	// The destination is fresh per upload, so the object a Recipe currently
+	// serves is untouched until its row names the new one.
+	promoted, err := models.NewImageKey(recipeID)
+	if err != nil {
+		return "", err
+	}
 	if err := h.images.Promote(ctx, stagedKey, promoted); err != nil {
 		return "", err
 	}
@@ -118,19 +122,30 @@ func writeImageError(w http.ResponseWriter, err error) {
 	http.Error(w, "failed to store image", http.StatusInternalServerError)
 }
 
-// authors reports whether a Recipe is the given user's to change. It answers
-// the same "not found" a foreign Recipe gets elsewhere, so it tells a stranger
-// nothing about what exists.
-func (h *RecipeHandler) authors(ctx context.Context, recipeID string, userID string) error {
-	author, err := h.repo.GetRecipeAuthor(ctx, recipeID)
+// storedImageOf reads what a Recipe holds, refusing anyone but its Author. A
+// Recipe written by someone else answers the same "not found" a missing one
+// does, so it tells a stranger nothing about what exists.
+func (h *RecipeHandler) storedImageOf(ctx context.Context, recipeID string, userID string) (models.StoredImage, error) {
+	stored, err := h.repo.GetStoredImage(ctx, recipeID)
 	if err != nil {
-		return err
+		return models.StoredImage{}, err
 	}
-	if author != userID {
-		return sql.ErrNoRows
+	if stored.Author != userID {
+		return models.StoredImage{}, sql.ErrNoRows
 	}
 
-	return nil
+	return stored, nil
+}
+
+// writeRecipeLookupError keeps a database that could not answer distinct from
+// a Recipe the caller may not change.
+func writeRecipeLookupError(w http.ResponseWriter, err error) {
+	if errors.Is(err, sql.ErrNoRows) {
+		http.Error(w, "recipe not found", http.StatusNotFound)
+		return
+	}
+
+	http.Error(w, "failed to fetch recipe", http.StatusInternalServerError)
 }
 
 // discardImage drops an object the corpus no longer refers to. Failure is
