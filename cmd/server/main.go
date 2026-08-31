@@ -12,6 +12,7 @@ import (
 	"github.com/thomaslgrega/bitelyapi/internal/db"
 	"github.com/thomaslgrega/bitelyapi/internal/handlers"
 	"github.com/thomaslgrega/bitelyapi/internal/middleware"
+	"github.com/thomaslgrega/bitelyapi/internal/models"
 	"github.com/thomaslgrega/bitelyapi/internal/repository"
 )
 
@@ -24,7 +25,14 @@ func main() {
 
 	defer dbConn.Close()
 
-	recipesRepo := repository.NewRecipeRepository(dbConn)
+	// A missing base URL is fatal rather than a server that boots and answers
+	// every Recipe Image with a URL pointing at nothing (ADR-0006).
+	imageBaseURL := os.Getenv("R2_PUBLIC_BASE_URL")
+	if imageBaseURL == "" {
+		log.Fatal("R2_PUBLIC_BASE_URL is required")
+	}
+
+	recipesRepo := repository.NewRecipeRepository(dbConn, models.NewImageLocator(imageBaseURL))
 	recipesHandler := handlers.NewRecipeHandler(recipesRepo)
 
 	authRepo := repository.NewAuthRepository(dbConn)

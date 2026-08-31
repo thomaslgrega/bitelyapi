@@ -21,6 +21,10 @@ _Avoid_: Draft, unpublished recipe
 Another person's Shared Recipe that a user has kept a copy of on their device. The same Recipe exists in both the corpus and the user's local store, and the local copy carries the corpus Recipe's identity so the two can be recognized as one.
 _Avoid_: Bookmarked recipe, favorite
 
+**Recipe Image**:
+The one image a Recipe carries, uploaded when the Recipe is shared and stored in the corpus rather than on the device. It serves both the card and the hero, so it is not sized for either alone. A Recipe may have none.
+_Avoid_: Thumbnail, photo, hero image
+
 **Author**:
 The user who created a Recipe. The only user permitted to change or delete it once shared.
 _Avoid_: Owner, creator

@@ -573,11 +573,12 @@ func (s *recipeStore) CreateRecipe(ctx context.Context, userID string, input mod
 		Name:          input.Name,
 		Category:      input.Category,
 		Instructions:  input.Instructions,
-		ThumbnailUrl:  input.ThumbnailUrl,
+		ImageKey:      input.ImageKey,
 		Ingredients:   ingredients,
 		Calories:      input.Calories,
 		TotalCookTime: input.TotalCookTime,
 	}
+	recipe.ResolveImage(testImageLocator)
 	s.recipes[recipe.ID] = recipe
 	return &recipe, nil
 }

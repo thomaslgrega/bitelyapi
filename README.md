@@ -27,7 +27,7 @@ Health check: `GET /health`
 - `GET /recipes` — the feed: recipe summaries for a client with nothing to narrow by, most recently shared first. Up to 50; `?limit=` lowers that (and lowers a name query's 50 too, but is refused alongside `category`, which is uncapped). See ADR-0005.
 - `GET /recipes?category=Dessert` — list recipe summaries by category
 - `GET /recipes?name=shakshuka` — list recipe summaries whose **name** matches the query, closest first. The match is fuzzy, so a misspelling still finds the recipe; it never looks at ingredients (that is `POST /recipes/match`). Composable with `category` to search within one. Up to 50 results. See ADR-0004.
-- `GET /recipes/{id}` — get full recipe details (includes ingredients)
+- `GET /recipes/{id}` — get full recipe details (includes ingredients). A recipe with an image carries `image_url`, composed from the stored key and `R2_PUBLIC_BASE_URL`; a recipe without one carries no `image_url` at all. Writes name the image by `image_key` instead. See ADR-0006.
 - `POST /recipes/match` — match a pantry against the recipe corpus. Body is a JSON list of raw ingredient strings, e.g. `["chicken", "rice", "onion"]`; the response is up to 50 recipe cards ordered by coverage, each with its matched ingredients, missing ingredients, and coverage. See `docs/ingredient-matching-algorithm.md`.
 
 ### Auth
@@ -52,6 +52,7 @@ Create a `.env` file:
 PORT=8080
 DATABASE_URL=postgres://postgres:password@localhost:5432/bitelyapi?sslmode=disable
 JWT_SECRET=your_secret
+R2_PUBLIC_BASE_URL=https://pub-<hash>.r2.dev
 ```
 
 ### 2. Start Postgres
@@ -77,7 +78,7 @@ API will be available at `http://localhost:8080`.
 
 Build + Run:
 ```bash
-DATABASE_URL="YOUR_DATABASE_URL" JWT_SECRET="YOUR_SECRET" make docker-up
+DATABASE_URL="YOUR_DATABASE_URL" JWT_SECRET="YOUR_SECRET" R2_PUBLIC_BASE_URL="https://pub-<hash>.r2.dev" make docker-up
 ```
 
 Verify:
@@ -102,6 +103,7 @@ Run:
 docker run --rm -p 8080:8080 \
   -e DATABASE_URL="YOUR_DATABASE_URL" \
   -e JWT_SECRET="YOUR_SECRET" \
+  -e R2_PUBLIC_BASE_URL="https://pub-<hash>.r2.dev" \
   bitely-api
 ```
 
@@ -112,7 +114,7 @@ curl http://localhost:8080/health
 
 ## Deployment Notes (Render + Neon)
 - API is containerized with Docker and deployed to Render.
-- Render configuration is managed via environment variables (`DATABASE_URL`, `JWT_SECRET`, etc.).
+- Render configuration is managed via environment variables (`DATABASE_URL`, `JWT_SECRET`, `R2_PUBLIC_BASE_URL`, etc.).
 - Neon hosts the production PostgreSQL database.
 - Base URL: https://bitelyapi-docker.onrender.com
 
