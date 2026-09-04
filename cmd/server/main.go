@@ -71,6 +71,8 @@ func main() {
 	mux.Handle("GET /me/recipes", authMW(http.HandlerFunc(recipesHandler.GetMyRecipes)))
 	mux.Handle("DELETE /recipes/{id}", authMW(http.HandlerFunc(recipesHandler.DeleteRecipe)))
 	mux.Handle("PUT /recipes/{id}", authMW(http.HandlerFunc(recipesHandler.UpdateRecipe)))
+	mux.Handle("PUT /recipes/{id}/image", authMW(http.HandlerFunc(recipesHandler.UpdateRecipeImage)))
+	mux.Handle("DELETE /recipes/{id}/image", authMW(http.HandlerFunc(recipesHandler.DeleteRecipeImage)))
 	mux.Handle("GET /me", authMW(http.HandlerFunc(authHandler.Me)))
 
 	mux.HandleFunc("POST /recipes/match", recipesHandler.MatchRecipes)

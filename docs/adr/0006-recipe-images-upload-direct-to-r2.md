@@ -24,7 +24,19 @@ No image is the empty string, not `NULL`, so the column scans into a plain `stri
 
 ## Consequences
 
-The request and the response name the image differently. A client sends `image_key` — a claim ticket for a staged upload — and receives `image_url`, a fetchable address. `CreateRecipeInput` and `Recipe` therefore stop mirroring each other field-for-field, and `Recipe` carries both fields because `PUT /recipes/{id}` decodes into the struct `GET /recipes/{id}` encodes. Resolving clears the key so a response never names the bucket layout.
+The request and the response name the image differently. A client sends `image_key` — a claim ticket for a staged upload — and receives `image_url`, a fetchable address. `CreateRecipeInput` and `Recipe` therefore stop mirroring each other field-for-field.
+
+**A Recipe Image is written through its own sub-resource.** `PUT /recipes/{id}/image` takes a staged key and answers `200` with the `image_url` the promotion produced, because the promoted key is minted by the server and a client that got `204` could only learn where its photo landed by fetching the Recipe again. `DELETE /recipes/{id}/image` answers `204` whether or not there was an image to remove, so a retried save cannot fail on its second attempt. `PUT /recipes/{id}` carries no `image_key` and refuses one with a `400` naming the endpoint that does.
+
+A recipe write replaces every field it carries, so a field a client omits is a field it deletes. That rule is safe for text, which the client holds and can send again, and unsafe for an image, whose bytes this decision deletes on replacement and whose key a client is never handed. Taking the image out of the recipe write is what keeps the rule literally true for every field that write still carries: an unchanged image is expressed by not calling the image endpoint, the one representation an omission cannot corrupt.
+
+`POST /recipes` keeps `image_key`. The promoted key derives from the Recipe id, which does not exist until create runs, so there is nothing for a separate image write to address yet; splitting create in two would open a window where a Shared Recipe has no image and add a failure mode to the path every share takes.
+
+Neither image endpoint promotes before `GetRecipeAuthor` has answered, for the reason the recipe write already establishes ownership first: promotion writes to a key derived from the path id, so leaving ownership to the row update would let a stranger's staged upload reach an Author's Recipe. A `404` on these routes means the Recipe is missing or belongs to someone else and nothing besides, which is why an imageless `DELETE` answers `204` instead.
+
+A client changing both text and image issues two writes, and they do not commit together — R2 and Postgres cannot, which is why a row update that fails after a promotion already leaves an object behind. The image write goes first and the client abandons the save if it fails: the irreversible half then either happened or did not, and a retry costs nothing.
+
+**Responses hold no key, but they conceal none either.** `image_url` is `R2_PUBLIC_BASE_URL + "/" + key` and that base is one constant every client holds, so any URL yields its key by removing a prefix. An earlier version of this decision claimed resolving kept a response from naming the bucket layout; it never did. What keeps `image_key` off responses is that the read-side and write-side values are different kinds of thing — a promoted `recipes/<id>/<uuid>.jpg` against a staged `incoming/<uuid>` — and the write path refuses the former deliberately. `Recipe` is decoded by nothing now that `PUT` has its own input type, so the key it scans into is tagged out of JSON rather than blanked on the way past.
 
 Presigned URLs work on neither the Public Development URL nor a custom domain, so uploads address `<account-id>.r2.cloudflarestorage.com` directly. The read hostname and the write hostname are different by construction, and `R2_PUBLIC_BASE_URL` names only the former.
 

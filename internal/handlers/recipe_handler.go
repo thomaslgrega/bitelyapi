@@ -24,7 +24,9 @@ type recipeRepository interface {
 	GetRecipesByUserID(ctx context.Context, userID string) ([]models.Recipe, error)
 	CreateRecipe(ctx context.Context, userID string, recipeID string, input models.CreateRecipeInput) (*models.Recipe, error)
 	DeleteRecipe(ctx context.Context, id string, userID string) (string, error)
-	UpdateRecipe(ctx context.Context, recipe models.Recipe, userID string) (string, error)
+	UpdateRecipe(ctx context.Context, input models.UpdateRecipeInput, userID string) error
+	SetRecipeImage(ctx context.Context, recipeID string, userID string, key string) (string, string, error)
+	ClearRecipeImage(ctx context.Context, recipeID string, userID string) (string, error)
 	GetMatchCandidates(ctx context.Context, tokens []string, limit int) ([]models.MatchCandidate, error)
 }
 type RecipeHandler struct {
@@ -218,6 +220,8 @@ func (h *RecipeHandler) DeleteRecipe(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusNoContent)
 }
 
+// UpdateRecipe writes a Recipe's text. The image is not among the fields it
+// carries (ADR-0006).
 func (h *RecipeHandler) UpdateRecipe(w http.ResponseWriter, r *http.Request) {
 	userID, err := middleware.UserIDFromContext(r.Context())
 	if err != nil {
@@ -225,72 +229,32 @@ func (h *RecipeHandler) UpdateRecipe(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	var recipe models.Recipe
-	if err := json.NewDecoder(r.Body).Decode(&recipe); err != nil {
+	var input models.UpdateRecipeInput
+	if err := json.NewDecoder(r.Body).Decode(&input); err != nil {
 		http.Error(w, "invalid JSON", http.StatusBadRequest)
 		return
 	}
-	recipe.TrimNames()
+	input.TrimNames()
+
+	if input.ImageKey != nil {
+		http.Error(w, "image_key is written through PUT /recipes/{id}/image", http.StatusBadRequest)
+		return
+	}
 
 	id := r.PathValue("id")
 	if id == "" {
 		http.Error(w, "id is required", http.StatusBadRequest)
 		return
 	}
-	recipe.ID = id
+	input.ID = id
 
-	stagedKey := recipe.ImageKey
-
-	// Shape first, so a malformed key costs no query.
-	if stagedKey != "" && !models.IsStagedImageKey(stagedKey) {
-		writeImageError(w, errNotStaged())
-		return
-	}
-
-	// Authorship is established before the copy rather than by the update that
-	// follows it, so a stranger's legally staged upload cannot reach the
-	// Author's Recipe at all.
-	if err := h.authorizeRecipe(r.Context(), recipe.ID, userID); err != nil {
-		writeRecipeLookupError(w, err)
-		return
-	}
-
-	if stagedKey != "" {
-		promoted, err := h.promoteImage(r.Context(), stagedKey, recipe.ID)
-		if err != nil {
-			writeImageError(w, err)
-			return
-		}
-		recipe.ImageKey = promoted
-	}
-
-	superseded, err := h.repo.UpdateRecipe(r.Context(), recipe, userID)
-	if err != nil {
-		// The promotion landed on its own key, so the Recipe Image is still
-		// whatever the row says — and if the row is gone, the copy belongs to
-		// nothing. Either way it sits outside the staging prefix, where no
-		// lifecycle rule would reach it.
-		if recipe.ImageKey != "" {
-			h.discardImage(r.Context(), recipe.ImageKey)
-		}
+	if err := h.repo.UpdateRecipe(r.Context(), input, userID); err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			http.Error(w, "recipe not found", http.StatusNotFound)
 			return
 		}
 		http.Error(w, "failed to update recipe", http.StatusInternalServerError)
 		return
-	}
-
-	if stagedKey != "" {
-		h.discardImage(r.Context(), stagedKey)
-	}
-
-	// The update reports the object the row stopped naming — read inside its
-	// own transaction, so a write that landed since the authorship check is
-	// the one this cleans up after. It supersedes the new key including when
-	// the update leaves the Recipe with no image at all.
-	if superseded != "" && superseded != recipe.ImageKey {
-		h.discardImage(r.Context(), superseded)
 	}
 
 	w.WriteHeader(http.StatusNoContent)
