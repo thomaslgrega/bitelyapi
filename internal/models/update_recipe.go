@@ -1,6 +1,9 @@
 package models
 
-import "strings"
+import (
+	"encoding/json"
+	"strings"
+)
 
 // UpdateRecipeInput is what PUT /recipes/{id} writes. It carries no image: a
 // Recipe Image is written through its own sub-resource (ADR-0006).
@@ -14,9 +17,10 @@ type UpdateRecipeInput struct {
 	Calories      int          `json:"calories,omitempty"`
 	TotalCookTime int          `json:"total_cook_time,omitempty"`
 
-	// ImageKey is decoded only so the write can refuse it by name. Dropping the
-	// field instead would silently ignore a client still sending an image here.
-	ImageKey string `json:"image_key,omitempty"`
+	// ImageKey is decoded only so the write can refuse it by name, and raw so
+	// that "" and null are refused too: a stale client asks for the deletion
+	// this write no longer performs by sending exactly those.
+	ImageKey json.RawMessage `json:"image_key,omitempty"`
 }
 
 // TrimNames trims the names a client sent so the value validated, the value

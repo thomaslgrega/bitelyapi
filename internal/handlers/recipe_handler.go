@@ -236,7 +236,7 @@ func (h *RecipeHandler) UpdateRecipe(w http.ResponseWriter, r *http.Request) {
 	}
 	input.TrimNames()
 
-	if input.ImageKey != "" {
+	if input.ImageKey != nil {
 		http.Error(w, "image_key is written through PUT /recipes/{id}/image", http.StatusBadRequest)
 		return
 	}

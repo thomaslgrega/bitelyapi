@@ -6,15 +6,31 @@ import (
 )
 
 // The image left the recipe write, so an update decodes an image_key only to
-// let the handler refuse it by name (ADR-0006).
-func TestUpdateRecipeInputDecodesAnImageKeyOnlyToRefuseIt(t *testing.T) {
-	var input UpdateRecipeInput
-	if err := json.Unmarshal([]byte(`{"name":"Shakshuka","image_key":"incoming/abc"}`), &input); err != nil {
-		t.Fatalf("failed to unmarshal input: %v", err)
+// let the handler refuse it by name. Presence is what it records: "" and null
+// are what a client asking for the old absent-means-delete sends (ADR-0006).
+func TestUpdateRecipeInputRecordsThatAnImageKeyWasSent(t *testing.T) {
+	tests := []struct {
+		name string
+		body string
+		sent bool
+	}{
+		{name: "a staged key", body: `{"name":"Shakshuka","image_key":"incoming/abc"}`, sent: true},
+		{name: "an empty key", body: `{"name":"Shakshuka","image_key":""}`, sent: true},
+		{name: "an explicit null", body: `{"name":"Shakshuka","image_key":null}`, sent: true},
+		{name: "no image field at all", body: `{"name":"Shakshuka"}`, sent: false},
 	}
 
-	if input.ImageKey != "incoming/abc" {
-		t.Fatalf("expected the image key to decode, got %q", input.ImageKey)
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			var input UpdateRecipeInput
+			if err := json.Unmarshal([]byte(test.body), &input); err != nil {
+				t.Fatalf("failed to unmarshal input: %v", err)
+			}
+
+			if sent := input.ImageKey != nil; sent != test.sent {
+				t.Fatalf("expected sent to be %v, got %v", test.sent, sent)
+			}
+		})
 	}
 }
 

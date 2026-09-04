@@ -569,24 +569,32 @@ func TestRecipeHandlerUpdateRecipe(t *testing.T) {
 
 	t.Run("refuses an image_key, naming the endpoint that takes one", func(t *testing.T) {
 		// The image left this write so an omitted field can no longer destroy
-		// one; a client still sending it is told where the image lives now
-		// rather than having it silently ignored (ADR-0006).
-		h := newTestRecipeHandler(fakeRecipeRepo{
-			updateRecipeFunc: func(ctx context.Context, input models.UpdateRecipeInput, userID string) error {
-				t.Fatal("expected no update")
-				return nil
-			},
-		})
-		body := `{"name":"Soup","category":"dinner","image_key":"` + stagedTestKey + `"}`
-		req := httptest.NewRequest(http.MethodPut, "/recipes/recipe-1", bytes.NewBufferString(body))
-		req.SetPathValue("id", "recipe-1")
-		rec := authedRequest(t, req, h.UpdateRecipe)
-
-		if rec.Code != http.StatusBadRequest {
-			t.Fatalf("expected status %d, got %d", http.StatusBadRequest, rec.Code)
+		// one. A stale client asking for that deletion — by key, by "" or by
+		// null — is told where the image lives now rather than quietly getting
+		// a 204 that changed nothing (ADR-0006).
+		bodies := []string{
+			`{"name":"Soup","category":"dinner","image_key":"` + stagedTestKey + `"}`,
+			`{"name":"Soup","category":"dinner","image_key":""}`,
+			`{"name":"Soup","category":"dinner","image_key":null}`,
 		}
-		if !strings.Contains(rec.Body.String(), "PUT /recipes/{id}/image") {
-			t.Fatalf("expected the refusal to name the image endpoint, got %q", rec.Body.String())
+
+		for _, body := range bodies {
+			h := newTestRecipeHandler(fakeRecipeRepo{
+				updateRecipeFunc: func(ctx context.Context, input models.UpdateRecipeInput, userID string) error {
+					t.Fatalf("expected no update for %s", body)
+					return nil
+				},
+			})
+			req := httptest.NewRequest(http.MethodPut, "/recipes/recipe-1", bytes.NewBufferString(body))
+			req.SetPathValue("id", "recipe-1")
+			rec := authedRequest(t, req, h.UpdateRecipe)
+
+			if rec.Code != http.StatusBadRequest {
+				t.Fatalf("expected %s to be refused with %d, got %d", body, http.StatusBadRequest, rec.Code)
+			}
+			if !strings.Contains(rec.Body.String(), "PUT /recipes/{id}/image") {
+				t.Fatalf("expected the refusal to name the image endpoint, got %q", rec.Body.String())
+			}
 		}
 	})
 }
