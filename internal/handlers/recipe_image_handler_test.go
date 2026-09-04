@@ -670,6 +670,49 @@ func TestDeleteRecipeImage(t *testing.T) {
 		}
 	})
 
+	t.Run("clears nothing on a recipe the caller does not author", func(t *testing.T) {
+		store := &fakeImageStore{}
+		repo := fakeRecipeRepo{
+			getRecipeAuthorFunc: func(ctx context.Context, id string) (string, error) {
+				return "user-2", nil
+			},
+			clearRecipeImageFunc: func(ctx context.Context, recipeID string, userID string) (string, error) {
+				t.Fatal("expected no write")
+				return "", nil
+			},
+		}
+		h := NewRecipeHandler(repo, store)
+
+		rec := authedRequest(t, imageRequest(), h.DeleteRecipeImage)
+
+		if rec.Code != http.StatusNotFound {
+			t.Fatalf("expected status %d, got %d", http.StatusNotFound, rec.Code)
+		}
+		if len(store.calls) != 0 {
+			t.Fatalf("expected no store calls, got %v", store.calls)
+		}
+	})
+
+	t.Run("reports a lookup failure as a server error", func(t *testing.T) {
+		store := &fakeImageStore{}
+		repo := fakeRecipeRepo{
+			getRecipeAuthorFunc: func(ctx context.Context, id string) (string, error) {
+				return "", errors.New("the database is down")
+			},
+			clearRecipeImageFunc: func(ctx context.Context, recipeID string, userID string) (string, error) {
+				t.Fatal("expected no write")
+				return "", nil
+			},
+		}
+		h := NewRecipeHandler(repo, store)
+
+		rec := authedRequest(t, imageRequest(), h.DeleteRecipeImage)
+
+		if rec.Code != http.StatusInternalServerError {
+			t.Fatalf("expected status %d, got %d", http.StatusInternalServerError, rec.Code)
+		}
+	})
+
 	t.Run("answers not found for a recipe that is missing or someone else's", func(t *testing.T) {
 		store := &fakeImageStore{}
 		repo := fakeRecipeRepo{

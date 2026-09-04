@@ -163,6 +163,11 @@ func (h *RecipeHandler) DeleteRecipeImage(w http.ResponseWriter, r *http.Request
 		return
 	}
 
+	if err := h.authorizeRecipe(r.Context(), id, userID); err != nil {
+		writeRecipeLookupError(w, err)
+		return
+	}
+
 	// The clear names the object the row held, rather than a read before it
 	// naming one a concurrent write may already have replaced.
 	superseded, err := h.repo.ClearRecipeImage(r.Context(), id, userID)
