@@ -42,9 +42,8 @@ func TestImageLocatorURLFor(t *testing.T) {
 	}
 }
 
-// A Recipe scans a stored key and answers a fetchable URL. The key stays on
-// the struct and off the wire: nothing decodes a Recipe, so it is tagged out
-// of JSON rather than blanked on the way past (ADR-0006).
+// A Recipe scans a stored key and answers a fetchable URL; the key stays off
+// the wire (ADR-0006).
 func TestRecipeResolveImage(t *testing.T) {
 	recipe := Recipe{ID: "recipe-1", Name: "Shakshuka", ImageKey: "recipes/recipe-1/image.jpg"}
 

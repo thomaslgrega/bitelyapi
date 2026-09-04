@@ -220,9 +220,8 @@ func (h *RecipeHandler) DeleteRecipe(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusNoContent)
 }
 
-// UpdateRecipe replaces every field it carries, so a field a client omits is a
-// field it deletes. The Recipe Image is not among them: it is written through
-// its own sub-resource, which is what keeps that rule safe (ADR-0006).
+// UpdateRecipe writes a Recipe's text. The image is not among the fields it
+// carries (ADR-0006).
 func (h *RecipeHandler) UpdateRecipe(w http.ResponseWriter, r *http.Request) {
 	userID, err := middleware.UserIDFromContext(r.Context())
 	if err != nil {
@@ -237,8 +236,6 @@ func (h *RecipeHandler) UpdateRecipe(w http.ResponseWriter, r *http.Request) {
 	}
 	input.TrimNames()
 
-	// A client still sending the old field is told where the image lives now,
-	// rather than having it accepted or silently dropped.
 	if input.ImageKey != "" {
 		http.Error(w, "image_key is written through PUT /recipes/{id}/image", http.StatusBadRequest)
 		return

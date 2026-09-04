@@ -575,6 +575,28 @@ func TestUpdateRecipeImage(t *testing.T) {
 			t.Fatalf("expected status %d, got %d", http.StatusOK, rec.Code)
 		}
 	})
+
+	t.Run("never discards the object the row now names", func(t *testing.T) {
+		// Nothing at the delete enforces that a promoted key is fresh per
+		// upload, so the write's own answer is what the cleanup is checked
+		// against.
+		store := &fakeImageStore{}
+		repo := fakeRecipeRepo{
+			setRecipeImageFunc: func(ctx context.Context, recipeID string, userID string, key string) (string, string, error) {
+				return testImageLocator.URLFor(key), key, nil
+			},
+		}
+		h := NewRecipeHandler(repo, store)
+
+		rec := authedRequest(t, imageRequest(stagedBody()), h.UpdateRecipeImage)
+
+		if rec.Code != http.StatusOK {
+			t.Fatalf("expected status %d, got %d", http.StatusOK, rec.Code)
+		}
+		if want := []string{stagedTestKey}; !reflect.DeepEqual(store.deletedKeys, want) {
+			t.Fatalf("expected only the staged object cleaned up, got %v", store.deletedKeys)
+		}
+	})
 }
 
 func TestDeleteRecipeImage(t *testing.T) {

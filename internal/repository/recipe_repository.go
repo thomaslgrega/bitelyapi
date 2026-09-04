@@ -316,9 +316,7 @@ func (r *RecipeRepository) DeleteRecipe(ctx context.Context, id string, userID s
 	return deleted, nil
 }
 
-// UpdateRecipe writes a Recipe's text. It touches no image key: a Recipe Image
-// is written through its own sub-resource, so a field this write omits can no
-// longer destroy one (ADR-0006).
+// UpdateRecipe writes a Recipe's text; it touches no image key (ADR-0006).
 func (r *RecipeRepository) UpdateRecipe(ctx context.Context, input models.UpdateRecipeInput, userID string) error {
 	transaction, err := r.db.BeginTx(ctx, nil)
 	if err != nil {

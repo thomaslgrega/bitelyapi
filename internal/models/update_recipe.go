@@ -2,10 +2,8 @@ package models
 
 import "strings"
 
-// UpdateRecipeInput is what PUT /recipes/{id} writes. It carries no image
-// because a Recipe Image is written through its own sub-resource, which is
-// what keeps absent-means-delete safe for every field this one does carry
-// (ADR-0006).
+// UpdateRecipeInput is what PUT /recipes/{id} writes. It carries no image: a
+// Recipe Image is written through its own sub-resource (ADR-0006).
 type UpdateRecipeInput struct {
 	// ID comes from the path, so a body naming another Recipe changes nothing.
 	ID            string       `json:"-"`

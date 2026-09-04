@@ -80,10 +80,8 @@ type imageResponse struct {
 	ImageURL string `json:"image_url"`
 }
 
-// UpdateRecipeImage writes a Recipe Image through its own sub-resource, so no
-// recipe write can destroy one by omitting it. It answers the URL the
-// promotion produced, because the key it landed under is server-minted and a
-// client would otherwise have to fetch the Recipe to learn it (ADR-0006).
+// UpdateRecipeImage sets a Recipe Image and answers the URL the promotion
+// produced (ADR-0006).
 func (h *RecipeHandler) UpdateRecipeImage(w http.ResponseWriter, r *http.Request) {
 	userID, err := middleware.UserIDFromContext(r.Context())
 	if err != nil {
@@ -138,8 +136,9 @@ func (h *RecipeHandler) UpdateRecipeImage(w http.ResponseWriter, r *http.Request
 
 	// The write reports the object the row stopped naming — read inside its own
 	// transaction, so a write that landed since the authorship check is the one
-	// this cleans up after.
-	if superseded != "" {
+	// this cleans up after. It is never the key just promoted, and the guard is
+	// what keeps that true of a mint that stops being unique per upload.
+	if superseded != "" && superseded != promoted {
 		h.discardImage(r.Context(), superseded)
 	}
 
@@ -149,8 +148,8 @@ func (h *RecipeHandler) UpdateRecipeImage(w http.ResponseWriter, r *http.Request
 	}
 }
 
-// DeleteRecipeImage removes a Recipe Image. It answers 204 whether or not there
-// was one, so a retried save cannot fail on its second attempt (ADR-0006).
+// DeleteRecipeImage removes a Recipe Image, and answers 204 whether or not
+// there was one (ADR-0006).
 func (h *RecipeHandler) DeleteRecipeImage(w http.ResponseWriter, r *http.Request) {
 	userID, err := middleware.UserIDFromContext(r.Context())
 	if err != nil {
