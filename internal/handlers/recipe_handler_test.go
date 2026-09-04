@@ -10,6 +10,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"reflect"
+	"strings"
 	"testing"
 
 	"github.com/thomaslgrega/bitelyapi/internal/models"
@@ -22,7 +23,9 @@ type fakeRecipeRepo struct {
 	getRecipesByUserIDFunc   func(ctx context.Context, userID string) ([]models.Recipe, error)
 	createRecipeFunc         func(ctx context.Context, userID string, recipeID string, input models.CreateRecipeInput) (*models.Recipe, error)
 	deleteRecipeFunc         func(ctx context.Context, id string, userID string) (string, error)
-	updateRecipeFunc         func(ctx context.Context, recipe models.Recipe, userID string) (string, error)
+	updateRecipeFunc         func(ctx context.Context, input models.UpdateRecipeInput, userID string) error
+	setRecipeImageFunc       func(ctx context.Context, recipeID string, userID string, key string) (string, string, error)
+	clearRecipeImageFunc     func(ctx context.Context, recipeID string, userID string) (string, error)
 	getMatchCandidatesFunc   func(ctx context.Context, tokens []string, limit int) ([]models.MatchCandidate, error)
 	searchRecipesByNameFunc  func(ctx context.Context, query string, category string, limit int) ([]models.RecipeSummary, error)
 	getRecipeFeedFunc        func(ctx context.Context, limit int) ([]models.RecipeSummary, error)
@@ -58,8 +61,16 @@ func (f fakeRecipeRepo) DeleteRecipe(ctx context.Context, id string, userID stri
 	return f.deleteRecipeFunc(ctx, id, userID)
 }
 
-func (f fakeRecipeRepo) UpdateRecipe(ctx context.Context, recipe models.Recipe, userID string) (string, error) {
-	return f.updateRecipeFunc(ctx, recipe, userID)
+func (f fakeRecipeRepo) UpdateRecipe(ctx context.Context, input models.UpdateRecipeInput, userID string) error {
+	return f.updateRecipeFunc(ctx, input, userID)
+}
+
+func (f fakeRecipeRepo) SetRecipeImage(ctx context.Context, recipeID string, userID string, key string) (string, string, error) {
+	return f.setRecipeImageFunc(ctx, recipeID, userID, key)
+}
+
+func (f fakeRecipeRepo) ClearRecipeImage(ctx context.Context, recipeID string, userID string) (string, error) {
+	return f.clearRecipeImageFunc(ctx, recipeID, userID)
 }
 
 func (f fakeRecipeRepo) SearchRecipesByName(ctx context.Context, query string, category string, limit int) ([]models.RecipeSummary, error) {
@@ -522,14 +533,14 @@ func TestRecipeHandlerUpdateRecipe(t *testing.T) {
 
 	t.Run("path id overrides body id", func(t *testing.T) {
 		h := newTestRecipeHandler(fakeRecipeRepo{
-			updateRecipeFunc: func(ctx context.Context, recipe models.Recipe, userID string) (string, error) {
-				if recipe.ID != "recipe-from-path" {
-					t.Fatalf("expected path id to win, got %q", recipe.ID)
+			updateRecipeFunc: func(ctx context.Context, input models.UpdateRecipeInput, userID string) error {
+				if input.ID != "recipe-from-path" {
+					t.Fatalf("expected path id to win, got %q", input.ID)
 				}
 				if userID != "user-1" {
 					t.Fatalf("expected user-1, got %q", userID)
 				}
-				return "", nil
+				return nil
 			},
 		})
 		req := httptest.NewRequest(http.MethodPut, "/recipes/recipe-from-path", bytes.NewBufferString(`{"id":"recipe-from-body","name":"Soup","category":"dinner"}`))
@@ -543,8 +554,8 @@ func TestRecipeHandlerUpdateRecipe(t *testing.T) {
 
 	t.Run("maps missing rows to not found", func(t *testing.T) {
 		h := newTestRecipeHandler(fakeRecipeRepo{
-			updateRecipeFunc: func(ctx context.Context, recipe models.Recipe, userID string) (string, error) {
-				return "", sql.ErrNoRows
+			updateRecipeFunc: func(ctx context.Context, input models.UpdateRecipeInput, userID string) error {
+				return sql.ErrNoRows
 			},
 		})
 		req := httptest.NewRequest(http.MethodPut, "/recipes/recipe-1", bytes.NewBufferString(`{"name":"Soup","category":"dinner"}`))
@@ -553,6 +564,29 @@ func TestRecipeHandlerUpdateRecipe(t *testing.T) {
 
 		if rec.Code != http.StatusNotFound {
 			t.Fatalf("expected status %d, got %d", http.StatusNotFound, rec.Code)
+		}
+	})
+
+	t.Run("refuses an image_key, naming the endpoint that takes one", func(t *testing.T) {
+		// The image left this write so an omitted field can no longer destroy
+		// one; a client still sending it is told where the image lives now
+		// rather than having it silently ignored (ADR-0006).
+		h := newTestRecipeHandler(fakeRecipeRepo{
+			updateRecipeFunc: func(ctx context.Context, input models.UpdateRecipeInput, userID string) error {
+				t.Fatal("expected no update")
+				return nil
+			},
+		})
+		body := `{"name":"Soup","category":"dinner","image_key":"` + stagedTestKey + `"}`
+		req := httptest.NewRequest(http.MethodPut, "/recipes/recipe-1", bytes.NewBufferString(body))
+		req.SetPathValue("id", "recipe-1")
+		rec := authedRequest(t, req, h.UpdateRecipe)
+
+		if rec.Code != http.StatusBadRequest {
+			t.Fatalf("expected status %d, got %d", http.StatusBadRequest, rec.Code)
+		}
+		if !strings.Contains(rec.Body.String(), "PUT /recipes/{id}/image") {
+			t.Fatalf("expected the refusal to name the image endpoint, got %q", rec.Body.String())
 		}
 	})
 }
@@ -659,14 +693,14 @@ func TestRecipeHandlerCreateRecipeTrimsNames(t *testing.T) {
 func TestRecipeHandlerUpdateRecipeTrimsNames(t *testing.T) {
 	t.Run("trims recipe and ingredient names before storing", func(t *testing.T) {
 		h := newTestRecipeHandler(fakeRecipeRepo{
-			updateRecipeFunc: func(ctx context.Context, recipe models.Recipe, userID string) (string, error) {
-				if recipe.Name != "Chicken Dinner" {
-					t.Fatalf("expected trimmed recipe name, got %q", recipe.Name)
+			updateRecipeFunc: func(ctx context.Context, input models.UpdateRecipeInput, userID string) error {
+				if input.Name != "Chicken Dinner" {
+					t.Fatalf("expected trimmed recipe name, got %q", input.Name)
 				}
-				if len(recipe.Ingredients) != 1 || recipe.Ingredients[0].Name != "Chicken Breast" {
-					t.Fatalf("expected trimmed ingredient name, got %#v", recipe.Ingredients)
+				if len(input.Ingredients) != 1 || input.Ingredients[0].Name != "Chicken Breast" {
+					t.Fatalf("expected trimmed ingredient name, got %#v", input.Ingredients)
 				}
-				return "", nil
+				return nil
 			},
 		})
 

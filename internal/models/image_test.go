@@ -42,9 +42,9 @@ func TestImageLocatorURLFor(t *testing.T) {
 	}
 }
 
-// A Recipe carries the stored key on the way in and the fetchable URL on the
-// way out. Resolving swaps one for the other so a response never exposes the
-// bucket layout the key describes (ADR-0006).
+// A Recipe scans a stored key and answers a fetchable URL. The key stays on
+// the struct and off the wire: nothing decodes a Recipe, so it is tagged out
+// of JSON rather than blanked on the way past (ADR-0006).
 func TestRecipeResolveImage(t *testing.T) {
 	recipe := Recipe{ID: "recipe-1", Name: "Shakshuka", ImageKey: "recipes/recipe-1/image.jpg"}
 
@@ -53,8 +53,8 @@ func TestRecipeResolveImage(t *testing.T) {
 	if recipe.ImageUrl != "https://img.bitely.app/recipes/recipe-1/image.jpg" {
 		t.Fatalf("expected composed image url, got %q", recipe.ImageUrl)
 	}
-	if recipe.ImageKey != "" {
-		t.Fatalf("expected the key to be cleared once resolved, got %q", recipe.ImageKey)
+	if recipe.ImageKey != "recipes/recipe-1/image.jpg" {
+		t.Fatalf("expected the key to survive resolving, got %q", recipe.ImageKey)
 	}
 
 	body, err := json.Marshal(recipe)
@@ -101,21 +101,34 @@ func TestRecipeSummaryResolveImage(t *testing.T) {
 	if summary.ImageUrl != "https://img.bitely.app/recipes/recipe-1/image.jpg" {
 		t.Fatalf("expected composed image url, got %q", summary.ImageUrl)
 	}
-	if summary.ImageKey != "" {
-		t.Fatalf("expected the key to be cleared once resolved, got %q", summary.ImageKey)
+	if summary.ImageKey != "recipes/recipe-1/image.jpg" {
+		t.Fatalf("expected the key to survive resolving, got %q", summary.ImageKey)
+	}
+
+	body, err := json.Marshal(summary)
+	if err != nil {
+		t.Fatalf("failed to marshal summary: %v", err)
+	}
+
+	var encoded map[string]any
+	if err := json.Unmarshal(body, &encoded); err != nil {
+		t.Fatalf("failed to unmarshal summary: %v", err)
+	}
+	if _, present := encoded["image_key"]; present {
+		t.Fatalf("expected no image_key in the response, got %s", body)
 	}
 }
 
-// The Recipe a client sends to PUT /recipes/{id} names its image by key, the
-// same claim ticket POST /recipes takes.
-func TestRecipeDecodesAnImageKey(t *testing.T) {
+// The image left the recipe write, so a key sent to a Recipe reaches no field
+// at all (ADR-0006).
+func TestRecipeDecodesNoImageKey(t *testing.T) {
 	var recipe Recipe
 	if err := json.Unmarshal([]byte(`{"name":"Shakshuka","image_key":"incoming/abc"}`), &recipe); err != nil {
 		t.Fatalf("failed to unmarshal recipe: %v", err)
 	}
 
-	if recipe.ImageKey != "incoming/abc" {
-		t.Fatalf("expected the image key to decode, got %q", recipe.ImageKey)
+	if recipe.ImageKey != "" {
+		t.Fatalf("expected the image key to be ignored, got %q", recipe.ImageKey)
 	}
 }
 

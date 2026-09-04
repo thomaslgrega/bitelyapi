@@ -316,48 +316,79 @@ func (r *RecipeRepository) DeleteRecipe(ctx context.Context, id string, userID s
 	return deleted, nil
 }
 
-// UpdateRecipe writes a Recipe and answers the image key its row stopped
-// naming. The prior key is read under the update's own lock rather than by the
-// caller beforehand, so two writes racing to replace the same image each
-// discard the one they actually superseded (ADR-0006).
-func (r *RecipeRepository) UpdateRecipe(ctx context.Context, recipe models.Recipe, userID string) (string, error) {
+// UpdateRecipe writes a Recipe's text. It touches no image key: a Recipe Image
+// is written through its own sub-resource, so a field this write omits can no
+// longer destroy one (ADR-0006).
+func (r *RecipeRepository) UpdateRecipe(ctx context.Context, input models.UpdateRecipeInput, userID string) error {
 	transaction, err := r.db.BeginTx(ctx, nil)
 	if err != nil {
-		return "", err
+		return err
 	}
 
 	defer transaction.Rollback()
 
-	var superseded string
+	var updated string
 	err = transaction.QueryRowContext(ctx, `
 		UPDATE recipes
-		SET name = $1, category = $2, instructions = $3, image_key = $4, calories = $5, total_cook_time = $6
-		FROM (SELECT id, image_key FROM recipes WHERE id = $7 AND user_id = $8 FOR UPDATE) prior
-		WHERE recipes.id = prior.id
-		RETURNING prior.image_key
-	`, recipe.Name, recipe.Category, recipe.Instructions, recipe.ImageKey, recipe.Calories, recipe.TotalCookTime, recipe.ID, userID).
-		Scan(&superseded)
+		SET name = $1, category = $2, instructions = $3, calories = $4, total_cook_time = $5
+		WHERE id = $6 AND user_id = $7
+		RETURNING id
+	`, input.Name, input.Category, input.Instructions, input.Calories, input.TotalCookTime, input.ID, userID).
+		Scan(&updated)
 	if err != nil {
-		return "", err
+		return err
 	}
 
-	_, err = transaction.ExecContext(ctx, "DELETE FROM ingredients WHERE recipe_id = $1", recipe.ID)
+	_, err = transaction.ExecContext(ctx, "DELETE FROM ingredients WHERE recipe_id = $1", input.ID)
 	if err != nil {
-		return "", err
+		return err
 	}
 
-	for _, ingredient := range recipe.Ingredients {
+	for _, ingredient := range input.Ingredients {
 		_, err := transaction.ExecContext(ctx, `
 			INSERT INTO ingredients (id, recipe_id, name, measurement)
 			VALUES ($1, $2, $3, $4)
-		`, ingredient.ID, recipe.ID, ingredient.Name, ingredient.Measurement)
+		`, ingredient.ID, input.ID, ingredient.Name, ingredient.Measurement)
 
 		if err != nil {
-			return "", err
+			return err
 		}
 	}
 
-	if err := transaction.Commit(); err != nil {
+	return transaction.Commit()
+}
+
+// SetRecipeImage points a Recipe at a promoted object, and answers both the URL
+// it now serves and the key its row stopped naming.
+func (r *RecipeRepository) SetRecipeImage(ctx context.Context, recipeID string, userID string, key string) (string, string, error) {
+	superseded, err := r.writeImageKey(ctx, recipeID, userID, key)
+	if err != nil {
+		return "", "", err
+	}
+
+	return r.images.URLFor(key), superseded, nil
+}
+
+// ClearRecipeImage leaves a Recipe with no image and answers the key its row
+// stopped naming.
+func (r *RecipeRepository) ClearRecipeImage(ctx context.Context, recipeID string, userID string) (string, error) {
+	return r.writeImageKey(ctx, recipeID, userID, "")
+}
+
+// writeImageKey is the one write that moves a Recipe Image. The prior key is
+// read under the write's own lock rather than by the caller beforehand, so two
+// writes racing to replace the same image each discard the one they actually
+// superseded (ADR-0006).
+func (r *RecipeRepository) writeImageKey(ctx context.Context, recipeID string, userID string, key string) (string, error) {
+	var superseded string
+	err := r.db.QueryRowContext(ctx, `
+		UPDATE recipes
+		SET image_key = $1
+		FROM (SELECT id, image_key FROM recipes WHERE id = $2 AND user_id = $3 FOR UPDATE) prior
+		WHERE recipes.id = prior.id
+		RETURNING prior.image_key
+	`, key, recipeID, userID).Scan(&superseded)
+	if err != nil {
 		return "", err
 	}
 

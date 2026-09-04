@@ -72,6 +72,125 @@ func (h *RecipeHandler) PresignImageUpload(w http.ResponseWriter, r *http.Reques
 	}
 }
 
+type updateImageRequest struct {
+	ImageKey string `json:"image_key"`
+}
+
+type imageResponse struct {
+	ImageURL string `json:"image_url"`
+}
+
+// UpdateRecipeImage writes a Recipe Image through its own sub-resource, so no
+// recipe write can destroy one by omitting it. It answers the URL the
+// promotion produced, because the key it landed under is server-minted and a
+// client would otherwise have to fetch the Recipe to learn it (ADR-0006).
+func (h *RecipeHandler) UpdateRecipeImage(w http.ResponseWriter, r *http.Request) {
+	userID, err := middleware.UserIDFromContext(r.Context())
+	if err != nil {
+		http.Error(w, "unauthorized", http.StatusUnauthorized)
+		return
+	}
+
+	id := r.PathValue("id")
+	if id == "" {
+		http.Error(w, "id is required", http.StatusBadRequest)
+		return
+	}
+
+	var request updateImageRequest
+	if err := json.NewDecoder(r.Body).Decode(&request); err != nil {
+		http.Error(w, "invalid JSON", http.StatusBadRequest)
+		return
+	}
+
+	// Shape first, so a malformed key costs no query.
+	if !models.IsStagedImageKey(request.ImageKey) {
+		writeImageError(w, errNotStaged())
+		return
+	}
+
+	// Authorship is established before the copy rather than by the row write
+	// that follows it, so a stranger's legally staged upload cannot reach the
+	// Author's Recipe at all.
+	if err := h.authorizeRecipe(r.Context(), id, userID); err != nil {
+		writeRecipeLookupError(w, err)
+		return
+	}
+
+	promoted, err := h.promoteImage(r.Context(), request.ImageKey, id)
+	if err != nil {
+		writeImageError(w, err)
+		return
+	}
+
+	imageURL, superseded, err := h.repo.SetRecipeImage(r.Context(), id, userID, promoted)
+	if err != nil {
+		// The promotion landed on its own key, so the Recipe Image is still
+		// whatever the row says — and if the row is gone, the copy belongs to
+		// nothing. Either way it sits outside the staging prefix, where no
+		// lifecycle rule would reach it.
+		h.discardImage(r.Context(), promoted)
+		writeImageRowError(w, err)
+		return
+	}
+
+	h.discardImage(r.Context(), request.ImageKey)
+
+	// The write reports the object the row stopped naming — read inside its own
+	// transaction, so a write that landed since the authorship check is the one
+	// this cleans up after.
+	if superseded != "" {
+		h.discardImage(r.Context(), superseded)
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	if err := json.NewEncoder(w).Encode(imageResponse{ImageURL: imageURL}); err != nil {
+		http.Error(w, "failed to encode response", http.StatusInternalServerError)
+	}
+}
+
+// DeleteRecipeImage removes a Recipe Image. It answers 204 whether or not there
+// was one, so a retried save cannot fail on its second attempt (ADR-0006).
+func (h *RecipeHandler) DeleteRecipeImage(w http.ResponseWriter, r *http.Request) {
+	userID, err := middleware.UserIDFromContext(r.Context())
+	if err != nil {
+		http.Error(w, "unauthorized", http.StatusUnauthorized)
+		return
+	}
+
+	id := r.PathValue("id")
+	if id == "" {
+		http.Error(w, "id is required", http.StatusBadRequest)
+		return
+	}
+
+	// The clear names the object the row held, rather than a read before it
+	// naming one a concurrent write may already have replaced.
+	superseded, err := h.repo.ClearRecipeImage(r.Context(), id, userID)
+	if err != nil {
+		writeImageRowError(w, err)
+		return
+	}
+
+	if superseded != "" {
+		h.discardImage(r.Context(), superseded)
+	}
+
+	w.WriteHeader(http.StatusNoContent)
+}
+
+// writeImageRowError keeps a database that could not answer distinct from a
+// Recipe that is missing or belongs to someone else, which on these routes are
+// the same 404.
+func writeImageRowError(w http.ResponseWriter, err error) {
+	if errors.Is(err, sql.ErrNoRows) {
+		http.Error(w, "recipe not found", http.StatusNotFound)
+		return
+	}
+
+	http.Error(w, "failed to write the recipe image", http.StatusInternalServerError)
+}
+
 // promoteImage turns a client's claim ticket into the key a Recipe row holds.
 // The HEAD is the only point anything about the bytes can be enforced
 // (ADR-0006).

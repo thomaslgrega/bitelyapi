@@ -24,13 +24,9 @@ func (l ImageLocator) URLFor(key string) string {
 	return l.baseURL + "/" + key
 }
 
-// resolveImage swaps the stored key for the fetchable URL. Clearing the key is
-// what keeps a response from naming the bucket layout it describes: Recipe
-// carries both fields because PUT /recipes/{id} decodes into the same struct
-// GET /recipes/{id} encodes.
+// resolveImage composes the URL a response carries from the key a row holds.
 func resolveImage(key *string, url *string, locator ImageLocator) {
 	*url = locator.URLFor(*key)
-	*key = ""
 }
 
 func (r *Recipe) ResolveImage(locator ImageLocator) {

@@ -342,175 +342,110 @@ func TestCreateRecipePromotesTheStagedImage(t *testing.T) {
 }
 
 func TestUpdateRecipeImage(t *testing.T) {
-	t.Run("promotes a newly staged image before the row commits", func(t *testing.T) {
+	stagedBody := func() *bytes.Buffer {
+		return bytes.NewBufferString(`{"image_key":"` + stagedTestKey + `"}`)
+	}
+	imageRequest := func(body *bytes.Buffer) *http.Request {
+		req := httptest.NewRequest(http.MethodPut, "/recipes/recipe-1/image", body)
+		req.SetPathValue("id", "recipe-1")
+		return req
+	}
+
+	t.Run("promotes the staged image and answers where it landed", func(t *testing.T) {
 		store := &fakeImageStore{}
-		var updated models.Recipe
+		var written string
 		repo := fakeRecipeRepo{
-			getRecipeAuthorFunc: func(ctx context.Context, id string) (string, error) {
-				return "user-1", nil
-			},
-			updateRecipeFunc: func(ctx context.Context, recipe models.Recipe, userID string) (string, error) {
-				store.calls = append(store.calls, "update")
-				updated = recipe
-				return "recipes/recipe-1/live.jpg", nil
+			setRecipeImageFunc: func(ctx context.Context, recipeID string, userID string, key string) (string, string, error) {
+				store.calls = append(store.calls, "set-image")
+				if recipeID != "recipe-1" || userID != "user-1" {
+					t.Fatalf("expected the path recipe and the caller, got %q and %q", recipeID, userID)
+				}
+				written = key
+				return testImageLocator.URLFor(key), "recipes/recipe-1/live.jpg", nil
 			},
 		}
 		h := NewRecipeHandler(repo, store)
 
-		body := `{"name":"Shakshuka","category":"dinner","image_key":"` + stagedTestKey + `"}`
-		req := httptest.NewRequest(http.MethodPut, "/recipes/recipe-1", bytes.NewBufferString(body))
-		req.SetPathValue("id", "recipe-1")
-		rec := authedRequest(t, req, h.UpdateRecipe)
+		rec := authedRequest(t, imageRequest(stagedBody()), h.UpdateRecipeImage)
 
-		if rec.Code != http.StatusNoContent {
-			t.Fatalf("expected status %d, got %d: %s", http.StatusNoContent, rec.Code, rec.Body)
+		if rec.Code != http.StatusOK {
+			t.Fatalf("expected status %d, got %d: %s", http.StatusOK, rec.Code, rec.Body)
 		}
-		if want := []string{"head", "promote", "update", "delete", "delete"}; !reflect.DeepEqual(store.calls, want) {
+		if want := []string{"head", "promote", "set-image", "delete", "delete"}; !reflect.DeepEqual(store.calls, want) {
 			t.Fatalf("expected calls %v, got %v", want, store.calls)
 		}
-		if !strings.HasPrefix(updated.ImageKey, "recipes/recipe-1/") {
-			t.Fatalf("expected the row to hold a key derived from the recipe, got %q", updated.ImageKey)
+		if !strings.HasPrefix(written, "recipes/recipe-1/") {
+			t.Fatalf("expected the row to hold a key derived from the recipe, got %q", written)
 		}
-		if updated.ImageKey == "recipes/recipe-1/live.jpg" {
+		if written == "recipes/recipe-1/live.jpg" {
 			t.Fatal("expected the replacement to land beside the live object, not on it")
 		}
-		// The superseded key is whatever the update reports it replaced, so a
+		// The superseded key is whatever the write reports it replaced, so a
 		// write that landed in between is the one this cleans up after.
 		if want := []string{stagedTestKey, "recipes/recipe-1/live.jpg"}; !reflect.DeepEqual(store.deletedKeys, want) {
 			t.Fatalf("expected the staged and superseded objects cleaned up, got %v", store.deletedKeys)
 		}
-	})
 
-	t.Run("discards the promoted object when the row is gone", func(t *testing.T) {
-		// The Recipe can be deleted between the authorship check and the
-		// update, and the promoted key sits outside the staging prefix where
-		// no lifecycle rule would reach it.
-		store := &fakeImageStore{}
-		repo := fakeRecipeRepo{
-			updateRecipeFunc: func(ctx context.Context, recipe models.Recipe, userID string) (string, error) {
-				return "", sql.ErrNoRows
-			},
+		var body struct {
+			ImageURL string `json:"image_url"`
 		}
-		h := NewRecipeHandler(repo, store)
-
-		body := `{"name":"Shakshuka","category":"dinner","image_key":"` + stagedTestKey + `"}`
-		req := httptest.NewRequest(http.MethodPut, "/recipes/recipe-1", bytes.NewBufferString(body))
-		req.SetPathValue("id", "recipe-1")
-		rec := authedRequest(t, req, h.UpdateRecipe)
-
-		if rec.Code != http.StatusNotFound {
-			t.Fatalf("expected status %d, got %d", http.StatusNotFound, rec.Code)
+		if err := json.Unmarshal(rec.Body.Bytes(), &body); err != nil {
+			t.Fatalf("failed to decode the response: %v", err)
 		}
-		if len(store.deletedKeys) != 1 || store.deletedKeys[0] != store.promotedTo {
-			t.Fatalf("expected the promoted orphan to be dropped, got %v", store.deletedKeys)
+		if body.ImageURL != testImageLocator.URLFor(written) {
+			t.Fatalf("expected the URL the promotion produced, got %q", body.ImageURL)
 		}
 	})
 
-	t.Run("leaves the live image alone when the row fails", func(t *testing.T) {
-		// The copy lands on its own key, so a Recipe Image changes only when
-		// the row does. The orphan the failure leaves sits outside the staging
-		// prefix, so nothing else would reap it.
+	t.Run("requires auth", func(t *testing.T) {
 		store := &fakeImageStore{}
-		repo := fakeRecipeRepo{
-			getRecipeAuthorFunc: func(ctx context.Context, id string) (string, error) {
-				return "user-1", nil
-			},
-			updateRecipeFunc: func(ctx context.Context, recipe models.Recipe, userID string) (string, error) {
-				return "", errors.New("commit failed")
-			},
-		}
-		h := NewRecipeHandler(repo, store)
+		h := NewRecipeHandler(fakeRecipeRepo{}, store)
+		rec := httptest.NewRecorder()
 
-		body := `{"name":"Shakshuka","category":"dinner","image_key":"` + stagedTestKey + `"}`
-		req := httptest.NewRequest(http.MethodPut, "/recipes/recipe-1", bytes.NewBufferString(body))
-		req.SetPathValue("id", "recipe-1")
-		rec := authedRequest(t, req, h.UpdateRecipe)
+		h.UpdateRecipeImage(rec, imageRequest(stagedBody()))
 
-		if rec.Code != http.StatusInternalServerError {
-			t.Fatalf("expected status %d, got %d", http.StatusInternalServerError, rec.Code)
-		}
-		for _, deleted := range store.deletedKeys {
-			if deleted == "recipes/recipe-1/live.jpg" {
-				t.Fatal("expected the live object to survive a failed update")
-			}
-		}
-		if len(store.deletedKeys) != 1 || store.deletedKeys[0] != store.promotedTo {
-			t.Fatalf("expected the promoted orphan to be dropped, got %v", store.deletedKeys)
-		}
-	})
-
-	t.Run("reports a lookup failure as a server error", func(t *testing.T) {
-		store := &fakeImageStore{}
-		repo := fakeRecipeRepo{
-			getRecipeAuthorFunc: func(ctx context.Context, id string) (string, error) {
-				return "", errors.New("the database is down")
-			},
-		}
-		h := NewRecipeHandler(repo, store)
-
-		body := `{"name":"Shakshuka","category":"dinner","image_key":"` + stagedTestKey + `"}`
-		req := httptest.NewRequest(http.MethodPut, "/recipes/recipe-1", bytes.NewBufferString(body))
-		req.SetPathValue("id", "recipe-1")
-		rec := authedRequest(t, req, h.UpdateRecipe)
-
-		if rec.Code != http.StatusInternalServerError {
-			t.Fatalf("expected status %d, got %d", http.StatusInternalServerError, rec.Code)
+		if rec.Code != http.StatusUnauthorized {
+			t.Fatalf("expected status %d, got %d", http.StatusUnauthorized, rec.Code)
 		}
 		if len(store.calls) != 0 {
 			t.Fatalf("expected no store calls, got %v", store.calls)
 		}
 	})
 
-	t.Run("deletes the superseded object when the recipe keeps no image", func(t *testing.T) {
+	t.Run("rejects invalid json", func(t *testing.T) {
 		store := &fakeImageStore{}
-		repo := fakeRecipeRepo{
-			getRecipeAuthorFunc: func(ctx context.Context, id string) (string, error) {
-				return "user-1", nil
-			},
-			updateRecipeFunc: func(ctx context.Context, recipe models.Recipe, userID string) (string, error) {
-				store.calls = append(store.calls, "update")
-				return "recipes/recipe-1/live.jpg", nil
-			},
-		}
-		h := NewRecipeHandler(repo, store)
+		h := NewRecipeHandler(fakeRecipeRepo{}, store)
 
-		req := httptest.NewRequest(http.MethodPut, "/recipes/recipe-1", bytes.NewBufferString(`{"name":"Shakshuka","category":"dinner"}`))
-		req.SetPathValue("id", "recipe-1")
-		rec := authedRequest(t, req, h.UpdateRecipe)
+		rec := authedRequest(t, imageRequest(bytes.NewBufferString("{")), h.UpdateRecipeImage)
 
-		if rec.Code != http.StatusNoContent {
-			t.Fatalf("expected status %d, got %d", http.StatusNoContent, rec.Code)
+		if rec.Code != http.StatusBadRequest {
+			t.Fatalf("expected status %d, got %d", http.StatusBadRequest, rec.Code)
 		}
-		if want := []string{"update", "delete"}; !reflect.DeepEqual(store.calls, want) {
-			t.Fatalf("expected calls %v, got %v", want, store.calls)
-		}
-		if store.deletedKeys[0] != "recipes/recipe-1/live.jpg" {
-			t.Fatalf("expected the stored object to be deleted, got %v", store.deletedKeys)
+		if len(store.calls) != 0 {
+			t.Fatalf("expected no store calls, got %v", store.calls)
 		}
 	})
 
-	t.Run("a store failure does not fail the update", func(t *testing.T) {
-		store := &fakeImageStore{
-			deleteFunc: func(ctx context.Context, key string) error {
-				return errors.New("r2 is down")
-			},
-		}
-		repo := fakeRecipeRepo{
-			getRecipeAuthorFunc: func(ctx context.Context, id string) (string, error) {
-				return "user-1", nil
-			},
-			updateRecipeFunc: func(ctx context.Context, recipe models.Recipe, userID string) (string, error) {
-				return "recipes/recipe-1/live.jpg", nil
-			},
-		}
-		h := NewRecipeHandler(repo, store)
+	t.Run("refuses a key failing shape validation without touching the store", func(t *testing.T) {
+		for _, key := range []string{"", "recipes/someone-elses-id/image.jpg", "incoming/not-a-uuid", "incoming/", "../incoming/x"} {
+			store := &fakeImageStore{}
+			repo := fakeRecipeRepo{
+				setRecipeImageFunc: func(ctx context.Context, recipeID string, userID string, promoted string) (string, string, error) {
+					t.Fatalf("expected no write for key %q", key)
+					return "", "", nil
+				},
+			}
+			h := NewRecipeHandler(repo, store)
 
-		req := httptest.NewRequest(http.MethodPut, "/recipes/recipe-1", bytes.NewBufferString(`{"name":"Shakshuka","category":"dinner"}`))
-		req.SetPathValue("id", "recipe-1")
-		rec := authedRequest(t, req, h.UpdateRecipe)
+			body := bytes.NewBufferString(`{"image_key":"` + key + `"}`)
+			rec := authedRequest(t, imageRequest(body), h.UpdateRecipeImage)
 
-		if rec.Code != http.StatusNoContent {
-			t.Fatalf("expected status %d, got %d", http.StatusNoContent, rec.Code)
+			if rec.Code != http.StatusBadRequest {
+				t.Fatalf("expected key %q to be refused with %d, got %d", key, http.StatusBadRequest, rec.Code)
+			}
+			if len(store.calls) != 0 {
+				t.Fatalf("expected key %q to be refused before the store, got calls %v", key, store.calls)
+			}
 		}
 	})
 
@@ -523,17 +458,14 @@ func TestUpdateRecipeImage(t *testing.T) {
 			getRecipeAuthorFunc: func(ctx context.Context, id string) (string, error) {
 				return "user-2", nil
 			},
-			updateRecipeFunc: func(ctx context.Context, recipe models.Recipe, userID string) (string, error) {
-				t.Fatal("expected no update")
-				return "", nil
+			setRecipeImageFunc: func(ctx context.Context, recipeID string, userID string, key string) (string, string, error) {
+				t.Fatal("expected no write")
+				return "", "", nil
 			},
 		}
 		h := NewRecipeHandler(repo, store)
 
-		body := `{"name":"Shakshuka","category":"dinner","image_key":"` + stagedTestKey + `"}`
-		req := httptest.NewRequest(http.MethodPut, "/recipes/recipe-1", bytes.NewBufferString(body))
-		req.SetPathValue("id", "recipe-1")
-		rec := authedRequest(t, req, h.UpdateRecipe)
+		rec := authedRequest(t, imageRequest(stagedBody()), h.UpdateRecipeImage)
 
 		if rec.Code != http.StatusNotFound {
 			t.Fatalf("expected status %d, got %d", http.StatusNotFound, rec.Code)
@@ -552,10 +484,7 @@ func TestUpdateRecipeImage(t *testing.T) {
 		}
 		h := NewRecipeHandler(repo, store)
 
-		body := `{"name":"Shakshuka","category":"dinner","image_key":"` + stagedTestKey + `"}`
-		req := httptest.NewRequest(http.MethodPut, "/recipes/recipe-1", bytes.NewBufferString(body))
-		req.SetPathValue("id", "recipe-1")
-		rec := authedRequest(t, req, h.UpdateRecipe)
+		rec := authedRequest(t, imageRequest(stagedBody()), h.UpdateRecipeImage)
 
 		if rec.Code != http.StatusNotFound {
 			t.Fatalf("expected status %d, got %d", http.StatusNotFound, rec.Code)
@@ -565,26 +494,212 @@ func TestUpdateRecipeImage(t *testing.T) {
 		}
 	})
 
-	t.Run("refuses a key failing shape validation without touching the store", func(t *testing.T) {
+	t.Run("reports a lookup failure as a server error", func(t *testing.T) {
 		store := &fakeImageStore{}
 		repo := fakeRecipeRepo{
-			updateRecipeFunc: func(ctx context.Context, recipe models.Recipe, userID string) (string, error) {
-				t.Fatal("expected no update")
+			getRecipeAuthorFunc: func(ctx context.Context, id string) (string, error) {
+				return "", errors.New("the database is down")
+			},
+		}
+		h := NewRecipeHandler(repo, store)
+
+		rec := authedRequest(t, imageRequest(stagedBody()), h.UpdateRecipeImage)
+
+		if rec.Code != http.StatusInternalServerError {
+			t.Fatalf("expected status %d, got %d", http.StatusInternalServerError, rec.Code)
+		}
+		if len(store.calls) != 0 {
+			t.Fatalf("expected no store calls, got %v", store.calls)
+		}
+	})
+
+	t.Run("discards the promoted object when the row is gone", func(t *testing.T) {
+		// The Recipe can be deleted between the authorship check and the
+		// write, and the promoted key sits outside the staging prefix where no
+		// lifecycle rule would reach it.
+		store := &fakeImageStore{}
+		repo := fakeRecipeRepo{
+			setRecipeImageFunc: func(ctx context.Context, recipeID string, userID string, key string) (string, string, error) {
+				return "", "", sql.ErrNoRows
+			},
+		}
+		h := NewRecipeHandler(repo, store)
+
+		rec := authedRequest(t, imageRequest(stagedBody()), h.UpdateRecipeImage)
+
+		if rec.Code != http.StatusNotFound {
+			t.Fatalf("expected status %d, got %d", http.StatusNotFound, rec.Code)
+		}
+		if len(store.deletedKeys) != 1 || store.deletedKeys[0] != store.promotedTo {
+			t.Fatalf("expected the promoted orphan to be dropped, got %v", store.deletedKeys)
+		}
+	})
+
+	t.Run("leaves the live image alone when the row fails", func(t *testing.T) {
+		// The copy lands on its own key, so a Recipe Image changes only when
+		// the row does.
+		store := &fakeImageStore{}
+		repo := fakeRecipeRepo{
+			setRecipeImageFunc: func(ctx context.Context, recipeID string, userID string, key string) (string, string, error) {
+				return "", "", errors.New("commit failed")
+			},
+		}
+		h := NewRecipeHandler(repo, store)
+
+		rec := authedRequest(t, imageRequest(stagedBody()), h.UpdateRecipeImage)
+
+		if rec.Code != http.StatusInternalServerError {
+			t.Fatalf("expected status %d, got %d", http.StatusInternalServerError, rec.Code)
+		}
+		if len(store.deletedKeys) != 1 || store.deletedKeys[0] != store.promotedTo {
+			t.Fatalf("expected only the promoted orphan to be dropped, got %v", store.deletedKeys)
+		}
+	})
+
+	t.Run("a store failure does not fail the write", func(t *testing.T) {
+		store := &fakeImageStore{
+			deleteFunc: func(ctx context.Context, key string) error {
+				return errors.New("r2 is down")
+			},
+		}
+		repo := fakeRecipeRepo{
+			setRecipeImageFunc: func(ctx context.Context, recipeID string, userID string, key string) (string, string, error) {
+				return testImageLocator.URLFor(key), "recipes/recipe-1/live.jpg", nil
+			},
+		}
+		h := NewRecipeHandler(repo, store)
+
+		rec := authedRequest(t, imageRequest(stagedBody()), h.UpdateRecipeImage)
+
+		if rec.Code != http.StatusOK {
+			t.Fatalf("expected status %d, got %d", http.StatusOK, rec.Code)
+		}
+	})
+}
+
+func TestDeleteRecipeImage(t *testing.T) {
+	imageRequest := func() *http.Request {
+		req := httptest.NewRequest(http.MethodDelete, "/recipes/recipe-1/image", nil)
+		req.SetPathValue("id", "recipe-1")
+		return req
+	}
+
+	t.Run("clears the row, then drops the object it named", func(t *testing.T) {
+		store := &fakeImageStore{}
+		repo := fakeRecipeRepo{
+			clearRecipeImageFunc: func(ctx context.Context, recipeID string, userID string) (string, error) {
+				store.calls = append(store.calls, "clear-image")
+				if recipeID != "recipe-1" || userID != "user-1" {
+					t.Fatalf("expected the path recipe and the caller, got %q and %q", recipeID, userID)
+				}
+				return "recipes/recipe-1/live.jpg", nil
+			},
+		}
+		h := NewRecipeHandler(repo, store)
+
+		rec := authedRequest(t, imageRequest(), h.DeleteRecipeImage)
+
+		if rec.Code != http.StatusNoContent {
+			t.Fatalf("expected status %d, got %d: %s", http.StatusNoContent, rec.Code, rec.Body)
+		}
+		if want := []string{"clear-image", "delete"}; !reflect.DeepEqual(store.calls, want) {
+			t.Fatalf("expected calls %v, got %v", want, store.calls)
+		}
+		if store.deletedKeys[0] != "recipes/recipe-1/live.jpg" {
+			t.Fatalf("expected the stored object to be deleted, got %v", store.deletedKeys)
+		}
+	})
+
+	t.Run("answers no content for a recipe that had no image", func(t *testing.T) {
+		// A retried save must not fail on its second attempt (ADR-0006).
+		store := &fakeImageStore{}
+		repo := fakeRecipeRepo{
+			clearRecipeImageFunc: func(ctx context.Context, recipeID string, userID string) (string, error) {
 				return "", nil
 			},
 		}
 		h := NewRecipeHandler(repo, store)
 
-		body := `{"name":"Shakshuka","category":"dinner","image_key":"recipes/someone-elses-id/image.jpg"}`
-		req := httptest.NewRequest(http.MethodPut, "/recipes/recipe-1", bytes.NewBufferString(body))
-		req.SetPathValue("id", "recipe-1")
-		rec := authedRequest(t, req, h.UpdateRecipe)
+		rec := authedRequest(t, imageRequest(), h.DeleteRecipeImage)
 
-		if rec.Code != http.StatusBadRequest {
-			t.Fatalf("expected status %d, got %d", http.StatusBadRequest, rec.Code)
+		if rec.Code != http.StatusNoContent {
+			t.Fatalf("expected status %d, got %d", http.StatusNoContent, rec.Code)
 		}
 		if len(store.calls) != 0 {
 			t.Fatalf("expected no store calls, got %v", store.calls)
+		}
+	})
+
+	t.Run("requires auth", func(t *testing.T) {
+		store := &fakeImageStore{}
+		repo := fakeRecipeRepo{
+			clearRecipeImageFunc: func(ctx context.Context, recipeID string, userID string) (string, error) {
+				t.Fatal("expected no write")
+				return "", nil
+			},
+		}
+		h := NewRecipeHandler(repo, store)
+		rec := httptest.NewRecorder()
+
+		h.DeleteRecipeImage(rec, imageRequest())
+
+		if rec.Code != http.StatusUnauthorized {
+			t.Fatalf("expected status %d, got %d", http.StatusUnauthorized, rec.Code)
+		}
+	})
+
+	t.Run("answers not found for a recipe that is missing or someone else's", func(t *testing.T) {
+		store := &fakeImageStore{}
+		repo := fakeRecipeRepo{
+			clearRecipeImageFunc: func(ctx context.Context, recipeID string, userID string) (string, error) {
+				return "", sql.ErrNoRows
+			},
+		}
+		h := NewRecipeHandler(repo, store)
+
+		rec := authedRequest(t, imageRequest(), h.DeleteRecipeImage)
+
+		if rec.Code != http.StatusNotFound {
+			t.Fatalf("expected status %d, got %d", http.StatusNotFound, rec.Code)
+		}
+		if len(store.calls) != 0 {
+			t.Fatalf("expected no store calls, got %v", store.calls)
+		}
+	})
+
+	t.Run("reports a row failure as a server error", func(t *testing.T) {
+		store := &fakeImageStore{}
+		repo := fakeRecipeRepo{
+			clearRecipeImageFunc: func(ctx context.Context, recipeID string, userID string) (string, error) {
+				return "", errors.New("the database is down")
+			},
+		}
+		h := NewRecipeHandler(repo, store)
+
+		rec := authedRequest(t, imageRequest(), h.DeleteRecipeImage)
+
+		if rec.Code != http.StatusInternalServerError {
+			t.Fatalf("expected status %d, got %d", http.StatusInternalServerError, rec.Code)
+		}
+	})
+
+	t.Run("a store failure does not fail the delete", func(t *testing.T) {
+		store := &fakeImageStore{
+			deleteFunc: func(ctx context.Context, key string) error {
+				return errors.New("r2 is down")
+			},
+		}
+		repo := fakeRecipeRepo{
+			clearRecipeImageFunc: func(ctx context.Context, recipeID string, userID string) (string, error) {
+				return "recipes/recipe-1/live.jpg", nil
+			},
+		}
+		h := NewRecipeHandler(repo, store)
+
+		rec := authedRequest(t, imageRequest(), h.DeleteRecipeImage)
+
+		if rec.Code != http.StatusNoContent {
+			t.Fatalf("expected status %d, got %d", http.StatusNoContent, rec.Code)
 		}
 	})
 }
